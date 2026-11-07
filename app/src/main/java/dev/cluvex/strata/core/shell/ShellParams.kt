@@ -15,11 +15,16 @@ object ShellParams {
 
     fun isValidPackage(name: String): Boolean = VALID.matches(name)
 
-    /** The same saved command (same id, so its run and log stay together) with the package name written in. */
-    fun resolve(command: SavedCommand, packageName: String): SavedCommand {
-        require(isValidPackage(packageName)) { "Not a package name" }
-        return command.copy(command = command.command.replace(PACKAGE, packageName))
+    /**
+     * The same saved command (same id, so its run and log stay together) with the package name written in. For
+     * several apps the command is written once for each, one after the other, and runs as a single run.
+     */
+    fun resolveAll(command: SavedCommand, packages: List<String>): SavedCommand {
+        require(packages.isNotEmpty() && packages.all { isValidPackage(it) }) { "Not a package name" }
+        return command.copy(command = packages.joinToString("\n") { command.command.replace(PACKAGE, it) })
     }
+
+    fun resolve(command: SavedCommand, packageName: String): SavedCommand = resolveAll(command, listOf(packageName))
 
     private fun prefs(context: Context) = context.applicationContext.getSharedPreferences("shell_ui", Context.MODE_PRIVATE)
 

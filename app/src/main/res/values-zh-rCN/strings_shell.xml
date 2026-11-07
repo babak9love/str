@@ -78,4 +78,5 @@
     <string name="shell_param_empty">未找到应用</string>
     <string name="shell_param_user">用户应用</string>
     <string name="shell_help">帮助</string>
+    <string name="shell_param_run_selected">运行 (%1$d)</string>
 </resources>

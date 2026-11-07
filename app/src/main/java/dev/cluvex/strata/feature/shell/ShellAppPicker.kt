@@ -1,7 +1,9 @@
 package dev.cluvex.strata.feature.shell
 
+import androidx.compose.foundation.selection.toggleable
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.graphics.Color
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -17,6 +19,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
@@ -36,6 +39,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.style.TextDirection
@@ -49,32 +53,51 @@ import dev.cluvex.strata.ui.expressive.ExpressiveDialog
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
-/** Asks which app goes into the {package} of a command; [onPick] gets a well-formed package name. */
+/**
+ * Asks which apps go into the {package} of a command; [onPick] gets well-formed package names. Each app has a check
+ * box, and nothing runs until the Run button next to Cancel is pressed; it shows how many apps are chosen.
+ */
 @Composable
-internal fun ShellAppPickerDialog(title: String, lastPackage: String?, onPick: (String) -> Unit, onDismiss: () -> Unit) {
+internal fun ShellAppPickerDialog(title: String, lastPackage: String?, onPick: (List<String>) -> Unit, onDismiss: () -> Unit) {
+    var selected by remember { mutableStateOf(emptyList<String>()) }
     ExpressiveDialog(
         onDismissRequest = onDismiss,
         title = title,
-        confirmButton = {},
+        confirmButton = { RunButton(selected, onPick) },
         dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.common_cancel)) } },
-        text = { ShellAppPickerContent(lastPackage, onPick) },
+        text = { ShellAppPickerContent(lastPackage, selected, { selected = it }, onPick) },
     )
 }
 
 /** The same picker in a plain dialog, for the launcher shortcut's window, which has no app theme of its own. */
 @Composable
-internal fun ShellAppPickerPlainDialog(title: String, lastPackage: String?, onPick: (String) -> Unit, onDismiss: () -> Unit) {
+internal fun ShellAppPickerPlainDialog(title: String, lastPackage: String?, onPick: (List<String>) -> Unit, onDismiss: () -> Unit) {
+    var selected by remember { mutableStateOf(emptyList<String>()) }
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(title, maxLines = 2, overflow = TextOverflow.Ellipsis) },
-        text = { ShellAppPickerContent(lastPackage, onPick) },
-        confirmButton = {},
+        text = { ShellAppPickerContent(lastPackage, selected, { selected = it }, onPick) },
+        confirmButton = { RunButton(selected, onPick) },
         dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.common_cancel)) } },
     )
 }
 
+/** Nothing runs until this is pressed; it shows how many apps are chosen. */
 @Composable
-private fun ShellAppPickerContent(lastPackage: String?, onPick: (String) -> Unit) {
+private fun RunButton(selected: List<String>, onPick: (List<String>) -> Unit) {
+    TextButton(onClick = { onPick(selected) }, enabled = selected.isNotEmpty()) {
+        Text(if (selected.isEmpty()) stringResource(R.string.shell_run) else stringResource(R.string.shell_param_run_selected, selected.size))
+    }
+}
+
+@Composable
+private fun ShellAppPickerContent(
+    lastPackage: String?,
+    selected: List<String>,
+    onSelected: (List<String>) -> Unit,
+    onPick: (List<String>) -> Unit,
+) {
+    fun toggle(pkg: String) = onSelected(if (pkg in selected) selected - pkg else selected + pkg)
     val context = LocalContext.current
     val apps by produceState<List<InstalledApp>?>(null) {
         value = withContext(Dispatchers.IO) {
@@ -119,11 +142,16 @@ private fun ShellAppPickerContent(lastPackage: String?, onPick: (String) -> Unit
                 LazyColumn {
                     if (typed != null) {
                         item(key = "typed") {
-                            Text(
-                                stringResource(R.string.shell_param_use, typed),
-                                style = mono,
-                                modifier = Modifier.fillMaxWidth().clickable { onPick(typed) }.padding(vertical = 12.dp, horizontal = 4.dp),
-                            )
+                            val on = typed in selected
+                            Row(
+                                modifier = Modifier.fillMaxWidth()
+                                    .toggleable(value = on, role = Role.Checkbox, onValueChange = { toggle(typed) })
+                                    .padding(vertical = 4.dp, horizontal = 4.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Text(stringResource(R.string.shell_param_use, typed), style = mono, modifier = Modifier.weight(1f))
+                                Checkbox(checked = on, onCheckedChange = null)
+                            }
                         }
                     }
                     if (shown.isEmpty() && typed == null) {
@@ -138,8 +166,12 @@ private fun ShellAppPickerContent(lastPackage: String?, onPick: (String) -> Unit
                     }
                     items(shown, key = { it.packageName }) { a ->
                         val last = a.packageName == lastPackage
+                        val on = a.packageName in selected
                         Row(
-                            modifier = Modifier.fillMaxWidth().clickable { onPick(a.packageName) }.padding(vertical = 8.dp, horizontal = 4.dp),
+                            modifier = Modifier.fillMaxWidth()
+                                .background(if (on) MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.5f) else Color.Transparent, RoundedCornerShape(12.dp))
+                                .toggleable(value = on, role = Role.Checkbox, onValueChange = { toggle(a.packageName) })
+                                .padding(vertical = 8.dp, horizontal = 4.dp),
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(12.dp),
                         ) {
@@ -168,6 +200,7 @@ private fun ShellAppPickerContent(lastPackage: String?, onPick: (String) -> Unit
                                     overflow = TextOverflow.Ellipsis,
                                 )
                             }
+                            Checkbox(checked = on, onCheckedChange = null)
                         }
                     }
                 }

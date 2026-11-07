@@ -78,4 +78,5 @@
     <string name="shell_param_empty">برنامه‌ای پیدا نشد</string>
     <string name="shell_param_user">برنامه‌های کاربر</string>
     <string name="shell_help">راهنما</string>
+    <string name="shell_param_run_selected">اجرا (%1$d)</string>
 </resources>

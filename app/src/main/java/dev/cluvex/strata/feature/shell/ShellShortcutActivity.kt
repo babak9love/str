@@ -14,14 +14,11 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.darkColorScheme
-import androidx.compose.material3.lightColorScheme
 import androidx.compose.material3.Surface
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -29,6 +26,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
@@ -38,6 +36,11 @@ import androidx.compose.ui.unit.dp
 import androidx.core.view.WindowCompat
 import androidx.lifecycle.lifecycleScope
 import dev.cluvex.strata.R
+import dev.cluvex.strata.core.data.SettingsRepository
+import dev.cluvex.strata.core.data.StrataSettings
+import dev.cluvex.strata.ui.theme.StrataTheme
+import kotlinx.coroutines.flow.catch
+import androidx.compose.runtime.remember
 import dev.cluvex.strata.core.shell.ShellCommandStore
 import dev.cluvex.strata.core.shell.ShellExecutor
 import dev.cluvex.strata.core.shell.ShellLogSource
@@ -66,7 +69,7 @@ class ShellShortcutActivity : ComponentActivity() {
     private val banner = MutableStateFlow<Banner?>(null)
     private val confirmFor = MutableStateFlow<SavedCommand?>(null)
     private val pickFor = MutableStateFlow<SavedCommand?>(null)
-    private val pickAnswer = CompletableDeferred<String?>()
+    private val pickAnswer = CompletableDeferred<List<String>?>()
     private val answer = CompletableDeferred<Boolean>()
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -74,11 +77,14 @@ class ShellShortcutActivity : ComponentActivity() {
         WindowCompat.setDecorFitsSystemWindows(window, false)
         window.addFlags(WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE or WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE)
         setContent {
+            // The dialogs use the app's own theme (its light/dark choice and colors), not just the system's dark mode.
+            val settingsFlow = remember { SettingsRepository(applicationContext).settings.catch { emit(StrataSettings()) } }
+            val appearance = settingsFlow.collectAsState(initial = StrataSettings()).value.appearance
             val current by banner.collectAsState()
             val asking by confirmFor.collectAsState()
             val picking by pickFor.collectAsState()
             picking?.let { c ->
-                MaterialTheme(colorScheme = if (isSystemInDarkTheme()) darkColorScheme() else lightColorScheme()) {
+                StrataTheme(appearance = appearance) {
                     ShellAppPickerPlainDialog(
                         title = stringResource(R.string.shell_param_pick_title, c.name),
                         lastPackage = ShellParams.lastPackage(applicationContext, c.id),
@@ -88,7 +94,7 @@ class ShellShortcutActivity : ComponentActivity() {
                 }
             }
             asking?.let { c ->
-                MaterialTheme(colorScheme = if (isSystemInDarkTheme()) darkColorScheme() else lightColorScheme()) {
+                StrataTheme(appearance = appearance) {
                     AlertDialog(
                         onDismissRequest = { answer.complete(false) },
                         title = { Text(stringResource(R.string.shell_confirm_title, c.name)) },
@@ -102,7 +108,7 @@ class ShellShortcutActivity : ComponentActivity() {
                 Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.statusBars).padding(start = 16.dp, end = 16.dp, top = 8.dp),
                 contentAlignment = Alignment.TopCenter,
             ) {
-                current?.let { BannerPill(it) }
+                current?.let { StrataTheme(appearance = appearance) { BannerPill(it) } }
             }
         }
 
@@ -126,14 +132,14 @@ class ShellShortcutActivity : ComponentActivity() {
                 // A command with {package} asks which app first; the shortcut cannot carry that choice itself.
                 window.clearFlags(WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE or WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE)
                 pickFor.value = command
-                val pkg = pickAnswer.await()
+                val pkgs = pickAnswer.await()
                 pickFor.value = null
-                if (pkg == null) {
+                if (pkgs == null) {
                     finish()
                     return@launch
                 }
-                ShellParams.rememberPackage(applicationContext, command.id, pkg)
-                command = ShellParams.resolve(command, pkg)
+                ShellParams.rememberPackage(applicationContext, command.id, pkgs.last())
+                command = ShellParams.resolveAll(command, pkgs)
                 window.addFlags(WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE or WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE)
             }
             if (command.confirm) {
@@ -188,7 +194,14 @@ class ShellShortcutActivity : ComponentActivity() {
 
 @Composable
 private fun BannerPill(banner: Banner) {
-    Surface(shape = RoundedCornerShape(28.dp), color = Color(0xEB1E1E1E), shadowElevation = 6.dp) {
+    // The pill follows the app theme: the theme's inverse surface (dark in the light theme, light in the dark one),
+    // with the text color made for it. The check and cross colors are picked so they show on either.
+    val surface = MaterialTheme.colorScheme.inverseSurface
+    val text = MaterialTheme.colorScheme.inverseOnSurface
+    val onDark = surface.luminance() < 0.5f
+    val okColor = if (onDark) Color(0xFF7BE08B) else Color(0xFF1B7F2E)
+    val failColor = if (onDark) Color(0xFFFF7A70) else Color(0xFFB3261E)
+    Surface(shape = RoundedCornerShape(28.dp), color = surface.copy(alpha = 0.94f), shadowElevation = 6.dp) {
         Row(
             Modifier.padding(horizontal = 18.dp, vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
@@ -196,19 +209,19 @@ private fun BannerPill(banner: Banner) {
         ) {
             when (banner) {
                 is Banner.Running -> {
-                    CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp, color = Color.White)
-                    Text(banner.name, color = Color.White)
+                    CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp, color = text)
+                    Text(banner.name, color = text)
                 }
                 is Banner.Done -> Text(
                     buildAnnotatedString {
-                        withStyle(SpanStyle(color = if (banner.ok) Color(0xFF7BE08B) else Color(0xFFFF7A70), fontWeight = FontWeight.Bold)) {
+                        withStyle(SpanStyle(color = if (banner.ok) okColor else failColor, fontWeight = FontWeight.Bold)) {
                             append(if (banner.ok) "✓" else "✗")
                         }
                         append(" ")
                         append(banner.name)
                         banner.detail?.let { append(" · "); append(it) }
                     },
-                    color = Color.White,
+                    color = text,
                 )
             }
         }

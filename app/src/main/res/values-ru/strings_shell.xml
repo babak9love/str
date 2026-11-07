@@ -78,4 +78,5 @@
     <string name="shell_param_empty">Приложения не найдены</string>
     <string name="shell_param_user">Пользовательские</string>
     <string name="shell_help">Справка</string>
+    <string name="shell_param_run_selected">Запуск (%1$d)</string>
 </resources>

@@ -78,4 +78,5 @@
     <string name="shell_param_empty">No apps found</string>
     <string name="shell_param_user">User apps</string>
     <string name="shell_help">Help</string>
+    <string name="shell_param_run_selected">Run (%1$d)</string>
 </resources>

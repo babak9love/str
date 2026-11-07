@@ -543,11 +543,11 @@ fun ShellCommandsScreen(onBack: () -> Unit, vm: ShellCommandsViewModel = viewMod
         ShellAppPickerDialog(
             title = stringResource(R.string.shell_param_pick_title, c.name),
             lastPackage = remember(c.id) { ShellParams.lastPackage(context, c.id) },
-            onPick = { pkg ->
+            onPick = { pkgs ->
                 pickFor = null
-                ShellParams.rememberPackage(context, c.id, pkg)
-                // The command that is confirmed, run and logged is the one with the app's name written in.
-                val resolved = ShellParams.resolve(c, pkg)
+                ShellParams.rememberPackage(context, c.id, pkgs.last())
+                // The command that is confirmed, run and logged is the one with the app names written in.
+                val resolved = ShellParams.resolveAll(c, pkgs)
                 if (c.confirm) confirming = resolved else startCommand(resolved)
             },
             onDismiss = { pickFor = null },
