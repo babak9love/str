@@ -367,7 +367,7 @@ fun ShellCommandsScreen(onBack: () -> Unit, vm: ShellCommandsViewModel = viewMod
                         )
                         LaunchedEffect(Unit) { focus.requestFocus() }
                     } else {
-                        Text(stringResource(R.string.shell_title))
+                        Text(stringResource(R.string.shell_title), maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
                 },
                 navigationIcon = {
@@ -382,17 +382,22 @@ fun ShellCommandsScreen(onBack: () -> Unit, vm: ShellCommandsViewModel = viewMod
                             contentDescription = stringResource(R.string.shell_search_commands),
                         )
                     }
-                    IconButton(onClick = { newGroupDialog = true }) {
-                        Icon(Icons.Rounded.CreateNewFolder, contentDescription = stringResource(R.string.shell_group_new))
-                    }
-                    IconButton(onClick = { showLog = true }) {
-                        Icon(Icons.Rounded.History, contentDescription = stringResource(R.string.shell_log_title))
+                    // While searching, the history button steps aside so the search box is wide.
+                    if (!searching) {
+                        IconButton(onClick = { showLog = true }) {
+                            Icon(Icons.Rounded.History, contentDescription = stringResource(R.string.shell_log_title))
+                        }
                     }
                     Box {
                         IconButton(onClick = { menuOpen = true }) {
                             Icon(Icons.Rounded.MoreVert, contentDescription = stringResource(R.string.common_more))
                         }
                         DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.shell_group_new)) },
+                                leadingIcon = { Icon(Icons.Rounded.CreateNewFolder, contentDescription = null) },
+                                onClick = { menuOpen = false; newGroupDialog = true },
+                            )
                             DropdownMenuItem(
                                 text = { Text(stringResource(R.string.shell_export)) },
                                 enabled = ui.commands.isNotEmpty(),
