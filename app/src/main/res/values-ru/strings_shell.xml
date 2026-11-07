@@ -79,4 +79,12 @@
     <string name="shell_param_user">Пользовательские</string>
     <string name="shell_help">Справка</string>
     <string name="shell_param_run_selected">Запуск (%1$d)</string>
+    <string name="shell_search_commands">Поиск команд</string>
+    <string name="shell_search_empty">Команды не найдены</string>
+    <string name="shell_output_filter">Фильтр строк</string>
+    <string name="shell_output_count">%1$d из %2$d строк</string>
+    <string name="shell_log_filter_clear">Сбросить фильтр</string>
+    <string name="shell_log_filter_empty">Записи не найдены</string>
+    <string name="shell_log_sort_newest">Сначала новые</string>
+    <string name="shell_log_sort_oldest">Сначала старые</string>
 </resources>

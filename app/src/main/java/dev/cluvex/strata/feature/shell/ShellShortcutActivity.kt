@@ -194,14 +194,14 @@ class ShellShortcutActivity : ComponentActivity() {
 
 @Composable
 private fun BannerPill(banner: Banner) {
-    // The pill follows the app theme: the theme's inverse surface (dark in the light theme, light in the dark one),
-    // with the text color made for it. The check and cross colors are picked so they show on either.
-    val surface = MaterialTheme.colorScheme.inverseSurface
-    val text = MaterialTheme.colorScheme.inverseOnSurface
+    // The pill has the same colors as the app's dialogs (their container color and the text color made for it), so it
+    // is dark in a dark theme and light in a light one. The check and cross colors are picked so they show on either.
+    val surface = MaterialTheme.colorScheme.surfaceContainerHigh
+    val text = MaterialTheme.colorScheme.onSurface
     val onDark = surface.luminance() < 0.5f
     val okColor = if (onDark) Color(0xFF7BE08B) else Color(0xFF1B7F2E)
     val failColor = if (onDark) Color(0xFFFF7A70) else Color(0xFFB3261E)
-    Surface(shape = RoundedCornerShape(28.dp), color = surface.copy(alpha = 0.94f), shadowElevation = 6.dp) {
+    Surface(shape = RoundedCornerShape(28.dp), color = surface.copy(alpha = 0.97f), shadowElevation = 6.dp) {
         Row(
             Modifier.padding(horizontal = 18.dp, vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically,

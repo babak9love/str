@@ -1,5 +1,14 @@
 package dev.cluvex.strata.feature.shell
 
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.input.KeyboardCapitalization
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.LocalContentColor
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.Icon
+import androidx.compose.material.icons.rounded.Search
+import androidx.compose.material.icons.rounded.Close
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -107,6 +116,7 @@ internal fun LiveOutputDialog(commandId: String, finished: ShellRun?, onDismiss:
         shown?.output.orEmpty()
     }
     val clipboard = rememberTextClipboard()
+    val filter = rememberOutputFilter()
     val scope = rememberCoroutineScope()
     var stopping by remember { mutableStateOf(false) }
     // If the stop did not work, the button comes back after a few seconds.
@@ -134,6 +144,7 @@ internal fun LiveOutputDialog(commandId: String, finished: ShellRun?, onDismiss:
                     ) { Text(stringResource(R.string.shell_log_stop), color = MaterialTheme.colorScheme.error) }
                 }
                 if (text.isNotEmpty()) {
+                    OutputFilterButton(filter)
                     TextButton(onClick = { clipboard.setText(text) }) { Text(stringResource(R.string.common_copy)) }
                 }
             }
@@ -156,7 +167,61 @@ internal fun LiveOutputDialog(commandId: String, finished: ShellRun?, onDismiss:
                     Text(stringResource(R.string.shell_log_running), style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
                 }
             }
-            if (result == null || text.isNotEmpty()) LiveOutputText(text.ifEmpty { "…" })
+            OutputFilterField(filter, text)
+            if (result == null || text.isNotEmpty()) LiveOutputText(filter.apply(text).ifEmpty { "…" })
         }
     }
+}
+
+/** A line filter for a command's output (like grep): keeps only the lines that contain the typed text. */
+internal class OutputFilter {
+    var open by mutableStateOf(false)
+    var query by mutableStateOf("")
+
+    fun toggle() {
+        open = !open
+        if (!open) query = ""
+    }
+
+    fun apply(text: String): String {
+        val q = query.trim()
+        if (!open || q.isEmpty()) return text
+        return text.lineSequence().filter { it.contains(q, ignoreCase = true) }.joinToString("\n")
+    }
+}
+
+@Composable
+internal fun rememberOutputFilter(): OutputFilter = remember { OutputFilter() }
+
+/** The search icon that opens or closes the filter field of [filter]. */
+@Composable
+internal fun OutputFilterButton(filter: OutputFilter) {
+    IconButton(onClick = filter::toggle) {
+        Icon(
+            Icons.Rounded.Search,
+            contentDescription = stringResource(R.string.shell_output_filter),
+            tint = if (filter.open) MaterialTheme.colorScheme.primary else LocalContentColor.current,
+        )
+    }
+}
+
+/** The filter field with how many of the output's lines match; it shows only while the filter is open. */
+@Composable
+internal fun OutputFilterField(filter: OutputFilter, text: String) {
+    if (!filter.open) return
+    val q = filter.query.trim()
+    val total = remember(text) { if (text.isEmpty()) 0 else text.lines().size }
+    val shown = remember(text, q) { if (q.isEmpty()) total else text.lineSequence().count { it.contains(q, ignoreCase = true) } }
+    OutlinedTextField(
+        value = filter.query,
+        onValueChange = { filter.query = it },
+        singleLine = true,
+        placeholder = { Text(stringResource(R.string.shell_output_filter), maxLines = 1, overflow = TextOverflow.Ellipsis) },
+        trailingIcon = {
+            IconButton(onClick = filter::toggle) { Icon(Icons.Rounded.Close, contentDescription = stringResource(R.string.common_close)) }
+        },
+        supportingText = { if (q.isNotEmpty()) Text(stringResource(R.string.shell_output_count, shown, total)) },
+        keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.None, autoCorrectEnabled = false),
+        modifier = Modifier.fillMaxWidth(),
+    )
 }

@@ -1,5 +1,12 @@
 package dev.cluvex.strata.feature.shell
 
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.RadioButton
+import androidx.compose.material3.LocalContentColor
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.Checkbox
+import androidx.compose.material.icons.rounded.FilterList
 import androidx.compose.material.icons.rounded.Shortcut
 import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.foundation.layout.size
@@ -98,8 +105,22 @@ fun ShellLogScreen(onBack: () -> Unit, vm: ShellLogViewModel = viewModel()) {
     LaunchedEffect(active.keys) { vm.reload() }
     var confirmClear by remember { mutableStateOf(false) }
     var expanded by remember { mutableStateOf(setOf<String>()) }
+    // The statuses to show; none chosen means everything.
+    var statusFilter by remember { mutableStateOf(setOf<ShellOutcome>()) }
+    // Newest first is how the history always was; the other order lists the oldest runs on top.
+    var newestFirst by remember { mutableStateOf(true) }
+    var filterMenu by remember { mutableStateOf(false) }
     val clipboard = rememberTextClipboard()
     val dateFormat = remember { DateFormat.getDateTimeInstance(DateFormat.MEDIUM, DateFormat.MEDIUM) }
+
+    val shownActive = if (statusFilter.isEmpty() || ShellOutcome.RUNNING in statusFilter) active.values.toList() else emptyList()
+    val activeEntryIds = active.values.map { it.entryId }.toSet()
+    val shownEntries = ui.entries
+        .filter { e ->
+            e.id !in activeEntryIds &&
+                (statusFilter.isEmpty() || shellOutcome(e.id in ui.runningEntryIds, e.timedOut, e.stopped, e.exitCode) in statusFilter)
+        }
+        .let { list -> if (newestFirst) list.sortedByDescending { it.time } else list.sortedBy { it.time } }
 
     Scaffold(
         modifier = Modifier.testTag("shell-log-screen"),
@@ -112,6 +133,45 @@ fun ShellLogScreen(onBack: () -> Unit, vm: ShellLogViewModel = viewModel()) {
                     }
                 },
                 actions = {
+                    if (ui.entries.isNotEmpty() || active.isNotEmpty()) {
+                        Box {
+                            IconButton(onClick = { filterMenu = true }) {
+                                Icon(
+                                    Icons.Rounded.FilterList,
+                                    contentDescription = stringResource(R.string.explorer_filter),
+                                    tint = if (statusFilter.isEmpty() && newestFirst) LocalContentColor.current else MaterialTheme.colorScheme.primary,
+                                )
+                            }
+                            DropdownMenu(expanded = filterMenu, onDismissRequest = { filterMenu = false }) {
+                                DropdownMenuItem(
+                                    text = { Text(stringResource(R.string.shell_log_sort_newest)) },
+                                    trailingIcon = { RadioButton(selected = newestFirst, onClick = null) },
+                                    onClick = { newestFirst = true },
+                                )
+                                DropdownMenuItem(
+                                    text = { Text(stringResource(R.string.shell_log_sort_oldest)) },
+                                    trailingIcon = { RadioButton(selected = !newestFirst, onClick = null) },
+                                    onClick = { newestFirst = false },
+                                )
+                                HorizontalDivider()
+                                // The menu stays open while statuses are ticked, so several can be chosen at once.
+                                ShellOutcome.entries.forEach { o ->
+                                    val on = o in statusFilter
+                                    DropdownMenuItem(
+                                        text = { Text(shellOutcomeText(o)) },
+                                        trailingIcon = { Checkbox(checked = on, onCheckedChange = null) },
+                                        onClick = { statusFilter = if (on) statusFilter - o else statusFilter + o },
+                                    )
+                                }
+                                if (statusFilter.isNotEmpty()) {
+                                    DropdownMenuItem(
+                                        text = { Text(stringResource(R.string.shell_log_filter_clear)) },
+                                        onClick = { statusFilter = emptySet(); filterMenu = false },
+                                    )
+                                }
+                            }
+                        }
+                    }
                     if (ui.entries.isNotEmpty()) {
                         IconButton(onClick = { confirmClear = true }) {
                             Icon(Icons.Rounded.DeleteSweep, contentDescription = stringResource(R.string.shell_log_clear))
@@ -130,10 +190,13 @@ fun ShellLogScreen(onBack: () -> Unit, vm: ShellLogViewModel = viewModel()) {
                     icon = Icons.Rounded.History,
                     modifier = Modifier.fillMaxSize().padding(24.dp),
                 )
+                statusFilter.isNotEmpty() && shownActive.isEmpty() && shownEntries.isEmpty() -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    Text(stringResource(R.string.shell_log_filter_empty), color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
                 else -> LazyColumn(Modifier.fillMaxSize()) {
                     // A running item and its saved entry share one key (the entry id), so when Stop ends the run the
                     // item stays open and just turns into the finished entry instead of collapsing.
-                    items(active.values.toList(), key = { it.entryId.ifEmpty { "run:" + it.commandId } }) { r ->
+                    items(shownActive, key = { it.entryId.ifEmpty { "run:" + it.commandId } }) { r ->
                         val key = r.entryId.ifEmpty { "run:" + r.commandId }
                         val open = key in expanded
                         ActiveRunItem(
@@ -143,8 +206,7 @@ fun ShellLogScreen(onBack: () -> Unit, vm: ShellLogViewModel = viewModel()) {
                             onToggle = { expanded = if (open) expanded - key else expanded + key },
                         )
                     }
-                    val runningIds = active.values.map { it.entryId }.toSet()
-                    items(ui.entries.filter { it.id !in runningIds }, key = { it.id }) { e ->
+                    items(shownEntries, key = { it.id }) { e ->
                         val open = e.id in expanded
                         LogItem(
                             entry = e,
@@ -210,6 +272,7 @@ private fun LogItem(entry: LogEntry, backgroundRunning: Boolean, expanded: Boole
     val fileScroll = rememberTailScrollState(enabled = expanded && logFile != null)
     // A normal command's saved output also opens at its last line (a stopped live run keeps showing its end).
     val outputScroll = rememberTailScrollState(enabled = expanded && logFile == null)
+    val filter = rememberOutputFilter()
     val scope = rememberCoroutineScope()
     var running by remember { mutableStateOf<Boolean?>(null) }
     var stopping by remember { mutableStateOf(false) }
@@ -253,15 +316,17 @@ private fun LogItem(entry: LogEntry, backgroundRunning: Boolean, expanded: Boole
             ) {
                 if (logFile == null) {
                     Text(stringResource(R.string.shell_log_output), style = MaterialTheme.typography.labelMedium)
+                    OutputFilterField(filter, entry.output)
                     Box(Modifier.fillMaxWidth().heightIn(max = 360.dp).verticalScroll(outputScroll)) {
                         SelectionContainer {
-                            Text(entry.output.ifEmpty { stringResource(R.string.shell_no_output) }, style = mono)
+                            Text(if (entry.output.isEmpty()) stringResource(R.string.shell_no_output) else filter.apply(entry.output), style = mono)
                         }
                     }
                 }
                 if (logFile != null) {
                     Text(stringResource(R.string.shell_log_file), style = MaterialTheme.typography.labelMedium)
                     Text(logFile, style = mono, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    OutputFilterField(filter, fileText.orEmpty())
                     Box(Modifier.fillMaxWidth().heightIn(max = 360.dp).verticalScroll(fileScroll)) {
                         SelectionContainer {
                             Text(
@@ -269,7 +334,7 @@ private fun LogItem(entry: LogEntry, backgroundRunning: Boolean, expanded: Boole
                                     fileLoading && fileText == null -> "…"
                                     fileText == null -> stringResource(R.string.shell_log_file_missing)
                                     fileText!!.isEmpty() -> stringResource(R.string.shell_no_output)
-                                    else -> fileText!!
+                                    else -> filter.apply(fileText!!)
                                 },
                                 style = mono,
                             )
@@ -290,13 +355,17 @@ private fun LogItem(entry: LogEntry, backgroundRunning: Boolean, expanded: Boole
                                 enabled = !stopping,
                             ) { Text(stringResource(R.string.shell_log_stop), color = MaterialTheme.colorScheme.error) }
                         }
+                        OutputFilterButton(filter)
                         TextButton(onClick = { clipboard.setText(fileText.orEmpty()) }, enabled = !fileText.isNullOrEmpty()) {
                             Text(stringResource(R.string.common_copy))
                         }
                     }
                 }
                 if (logFile == null) {
-                    TextButton(onClick = onCopy) { Text(stringResource(R.string.common_copy)) }
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        OutputFilterButton(filter)
+                        TextButton(onClick = onCopy) { Text(stringResource(R.string.common_copy)) }
+                    }
                 }
             }
         }
@@ -316,6 +385,7 @@ private fun ActiveRunItem(run: ActiveRun, expanded: Boolean, dateText: String, o
         append(source)
     }
     val clipboard = rememberTextClipboard()
+    val filter = rememberOutputFilter()
     val scope = rememberCoroutineScope()
     var stopping by remember { mutableStateOf(false) }
     // If the stop did not work, the button comes back after a few seconds.
@@ -341,7 +411,8 @@ private fun ActiveRunItem(run: ActiveRun, expanded: Boolean, dateText: String, o
                 Modifier.fillMaxWidth().padding(start = 72.dp, end = 16.dp, bottom = 12.dp),
                 verticalArrangement = Arrangement.spacedBy(6.dp),
             ) {
-                LiveOutputText(run.output.ifEmpty { "…" }, maxHeight = 360.dp)
+                OutputFilterField(filter, run.output)
+                LiveOutputText(filter.apply(run.output).ifEmpty { "…" }, maxHeight = 360.dp)
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     TextButton(
                         onClick = {
@@ -350,6 +421,7 @@ private fun ActiveRunItem(run: ActiveRun, expanded: Boolean, dateText: String, o
                         },
                         enabled = !stopping,
                     ) { Text(stringResource(R.string.shell_log_stop), color = MaterialTheme.colorScheme.error) }
+                    OutputFilterButton(filter)
                     TextButton(onClick = { clipboard.setText(run.output) }, enabled = run.output.isNotEmpty()) {
                         Text(stringResource(R.string.common_copy))
                     }

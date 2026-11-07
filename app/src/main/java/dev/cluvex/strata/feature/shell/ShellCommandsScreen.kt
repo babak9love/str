@@ -1,5 +1,9 @@
 package dev.cluvex.strata.feature.shell
 
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.material.icons.rounded.Search
+import androidx.compose.material.icons.rounded.Close
 import androidx.compose.foundation.lazy.LazyListItemInfo
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.material3.AssistChip
@@ -147,6 +151,8 @@ fun ShellCommandsScreen(onBack: () -> Unit, vm: ShellCommandsViewModel = viewMod
     // A command with {package} waits here until an app is picked for it.
     var pickFor by remember { mutableStateOf<SavedCommand?>(null) }
     var menuOpen by remember { mutableStateOf(false) }
+    var searching by remember { mutableStateOf(false) }
+    var query by remember { mutableStateOf("") }
     var newGroupDialog by remember { mutableStateOf(false) }
     var groupMenu by remember { mutableStateOf<String?>(null) }
     var liveId by remember { mutableStateOf<String?>(null) }
@@ -180,7 +186,7 @@ fun ShellCommandsScreen(onBack: () -> Unit, vm: ShellCommandsViewModel = viewMod
     LaunchedEffect(Unit) { vm.reload() }
     val listState = rememberLazyListState()
     // Display rows: each group (header + its commands unless folded), then the commands that are in no group.
-    val rows = remember(ui.commands, ui.groups, ui.collapsed) {
+    val allRows = remember(ui.commands, ui.groups, ui.collapsed) {
         buildList<ShellRow> {
             for (g in ui.groups) {
                 val items = ui.commands.filter { it.group == g }
@@ -191,6 +197,17 @@ fun ShellCommandsScreen(onBack: () -> Unit, vm: ShellCommandsViewModel = viewMod
             val loose = ui.commands.filter { it.group.isEmpty() }
             if (ui.groups.isNotEmpty()) add(ShellRow.Label)
             loose.forEach { add(ShellRow.Cmd(it, nested = false)) }
+        }
+    }
+    // While something is typed in the search, the list is flat: every command whose name, text or group matches.
+    val q = query.trim()
+    val rows: List<ShellRow> = remember(allRows, ui.commands, q) {
+        if (q.isEmpty()) {
+            allRows
+        } else {
+            ui.commands
+                .filter { c -> c.name.contains(q, ignoreCase = true) || c.command.contains(q, ignoreCase = true) || c.group.contains(q, ignoreCase = true) }
+                .map { ShellRow.Cmd(it, nested = false) }
         }
     }
     // The drag handlers live inside pointerInput blocks that are keyed only by the command id, so they keep the
@@ -206,10 +223,12 @@ fun ShellCommandsScreen(onBack: () -> Unit, vm: ShellCommandsViewModel = viewMod
         ShellLogScreen(onBack = { showLog = false })
         return
     }
-    BackHandler(onBack = onBack)
+    BackHandler(onBack = { if (searching) { searching = false; query = "" } else onBack() })
     val density = LocalDensity.current
 
     fun startDrag(id: String) {
+        // Reordering only makes sense in the full list, not in a search result.
+        if (q.isNotEmpty()) return
         dragId = id
         dragOffset = 0f
         pendingIndex = null
@@ -336,13 +355,33 @@ fun ShellCommandsScreen(onBack: () -> Unit, vm: ShellCommandsViewModel = viewMod
         modifier = Modifier.testTag("shell-commands-screen"),
         topBar = {
             TopAppBar(
-                title = { Text(stringResource(R.string.shell_title)) },
+                title = {
+                    if (searching) {
+                        val focus = remember { FocusRequester() }
+                        OutlinedTextField(
+                            value = query,
+                            onValueChange = { query = it },
+                            singleLine = true,
+                            placeholder = { Text(stringResource(R.string.shell_search_commands), maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                            modifier = Modifier.fillMaxWidth().focusRequester(focus),
+                        )
+                        LaunchedEffect(Unit) { focus.requestFocus() }
+                    } else {
+                        Text(stringResource(R.string.shell_title))
+                    }
+                },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = stringResource(R.string.common_back))
                     }
                 },
                 actions = {
+                    IconButton(onClick = { if (searching) { searching = false; query = "" } else searching = true }) {
+                        Icon(
+                            if (searching) Icons.Rounded.Close else Icons.Rounded.Search,
+                            contentDescription = stringResource(R.string.shell_search_commands),
+                        )
+                    }
                     IconButton(onClick = { newGroupDialog = true }) {
                         Icon(Icons.Rounded.CreateNewFolder, contentDescription = stringResource(R.string.shell_group_new))
                     }
@@ -385,6 +424,9 @@ fun ShellCommandsScreen(onBack: () -> Unit, vm: ShellCommandsViewModel = viewMod
                     icon = Icons.Rounded.Terminal,
                     modifier = Modifier.fillMaxSize().padding(24.dp),
                 )
+                q.isNotEmpty() && rows.isEmpty() -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    Text(stringResource(R.string.shell_search_empty), color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
                 else -> LazyColumn(
                     state = listState,
                     modifier = Modifier.fillMaxSize(),
@@ -1052,6 +1094,7 @@ private fun RunResultDialog(run: ShellRun, onDismiss: () -> Unit) {
     var stopping by remember { mutableStateOf(false) }
     // How a background command really ended (timed out, stopped, its exit code): read once it has stopped running.
     var endedEntry by remember { mutableStateOf<LogEntry?>(null) }
+    val filter = rememberOutputFilter()
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
     if (detachedLog != null) {
@@ -1127,6 +1170,7 @@ private fun RunResultDialog(run: ShellRun, onDismiss: () -> Unit) {
                         ) { Text(stringResource(R.string.shell_log_stop), color = MaterialTheme.colorScheme.error) }
                     }
                     if (copyText.isNotEmpty()) {
+                        OutputFilterButton(filter)
                         TextButton(onClick = { clipboard.setText(copyText) }) { Text(stringResource(R.string.common_copy)) }
                     }
                 }
@@ -1145,11 +1189,12 @@ private fun RunResultDialog(run: ShellRun, onDismiss: () -> Unit) {
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
+            OutputFilterField(filter, body)
             if (body.isNotEmpty()) {
                 Box(Modifier.fillMaxWidth().heightIn(max = 320.dp).verticalScroll(scroll)) {
                     SelectionContainer {
                         Text(
-                            body,
+                            filter.apply(body),
                             style = MaterialTheme.typography.bodySmall.copy(
                                 fontFamily = FontFamily.Monospace,
                                 textDirection = TextDirection.Ltr,

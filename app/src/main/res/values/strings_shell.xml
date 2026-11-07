@@ -79,4 +79,12 @@
     <string name="shell_param_user">User apps</string>
     <string name="shell_help">Help</string>
     <string name="shell_param_run_selected">Run (%1$d)</string>
+    <string name="shell_search_commands">Search commands</string>
+    <string name="shell_search_empty">No commands match</string>
+    <string name="shell_output_filter">Filter lines</string>
+    <string name="shell_output_count">%1$d of %2$d lines</string>
+    <string name="shell_log_filter_clear">Clear filter</string>
+    <string name="shell_log_filter_empty">No entries match</string>
+    <string name="shell_log_sort_newest">Newest first</string>
+    <string name="shell_log_sort_oldest">Oldest first</string>
 </resources>

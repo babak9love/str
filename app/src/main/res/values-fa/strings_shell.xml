@@ -79,4 +79,12 @@
     <string name="shell_param_user">برنامه‌های کاربر</string>
     <string name="shell_help">راهنما</string>
     <string name="shell_param_run_selected">اجرا (%1$d)</string>
+    <string name="shell_search_commands">جستجوی دستورها</string>
+    <string name="shell_search_empty">دستوری پیدا نشد</string>
+    <string name="shell_output_filter">فیلتر خطوط</string>
+    <string name="shell_output_count">%1$d از %2$d خط</string>
+    <string name="shell_log_filter_clear">پاک کردن فیلتر</string>
+    <string name="shell_log_filter_empty">موردی پیدا نشد</string>
+    <string name="shell_log_sort_newest">جدیدترین اول</string>
+    <string name="shell_log_sort_oldest">قدیمی‌ترین اول</string>
 </resources>
