@@ -14,9 +14,13 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
@@ -78,13 +82,16 @@ private fun ShellAppPickerContent(lastPackage: String?, onPick: (String) -> Unit
         }
     }
     var query by remember { mutableStateOf("") }
+    // User apps alone by default. Both on shows everything; either one alone shows only that kind.
+    var showUser by remember { mutableStateOf(true) }
     var showSystem by remember { mutableStateOf(false) }
     val q = query.trim()
-    val shown = remember(apps, q, showSystem, lastPackage) {
+    val shown = remember(apps, q, showUser, showSystem, lastPackage) {
         apps.orEmpty()
             .filter { a ->
-                if (q.isEmpty()) showSystem || !a.system || a.packageName == lastPackage
-                else a.label.contains(q, ignoreCase = true) || a.packageName.contains(q, ignoreCase = true)
+                val kindOk = showUser == showSystem || (if (showSystem) a.system else !a.system)
+                val textOk = q.isEmpty() || a.label.contains(q, ignoreCase = true) || a.packageName.contains(q, ignoreCase = true)
+                textOk && (kindOk || (q.isEmpty() && a.packageName == lastPackage))
             }
             .sortedByDescending { it.packageName == lastPackage }
     }
@@ -96,11 +103,14 @@ private fun ShellAppPickerContent(lastPackage: String?, onPick: (String) -> Unit
             value = query,
             onValueChange = { query = it },
             singleLine = true,
-            placeholder = { Text(stringResource(R.string.shell_param_search)) },
+            placeholder = { Text(stringResource(R.string.shell_param_search), maxLines = 1, overflow = TextOverflow.Ellipsis) },
             keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.None, autoCorrectEnabled = false),
             modifier = Modifier.fillMaxWidth(),
         )
-        FilterChip(selected = showSystem, onClick = { showSystem = !showSystem }, label = { Text(stringResource(R.string.shell_param_system)) })
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            KindChip(showUser, stringResource(R.string.shell_param_user)) { showUser = !showUser }
+            KindChip(showSystem, stringResource(R.string.shell_param_system)) { showSystem = !showSystem }
+        }
         Box(Modifier.fillMaxWidth().heightIn(max = 320.dp)) {
             if (apps == null) {
                 CircularProgressIndicator(Modifier.align(Alignment.Center))
@@ -163,4 +173,17 @@ private fun ShellAppPickerContent(lastPackage: String?, onPick: (String) -> Unit
             }
         }
     }
+}
+
+/** A filter chip with the app's usual chip colors; a check mark shows while it is on. */
+@Composable
+private fun KindChip(selected: Boolean, label: String, onClick: () -> Unit) {
+    FilterChip(
+        selected = selected,
+        onClick = onClick,
+        label = { Text(label, maxLines = 1) },
+        leadingIcon = if (selected) {
+            { Icon(Icons.Rounded.Check, contentDescription = null, modifier = Modifier.size(FilterChipDefaults.IconSize)) }
+        } else null,
+    )
 }

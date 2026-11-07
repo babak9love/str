@@ -56,6 +56,7 @@ import androidx.compose.material.icons.rounded.DragIndicator
 import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.History
+import androidx.compose.material.icons.rounded.Info
 import androidx.compose.material.icons.rounded.MoreVert
 import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.Terminal
@@ -774,6 +775,7 @@ private fun EditCommandDialog(
     var showStatus by remember { mutableStateOf(existing?.showStatus ?: true) }
     var group by remember { mutableStateOf(existing?.group.orEmpty()) }
     var newGroupDialog by remember { mutableStateOf(false) }
+    var showHelp by remember { mutableStateOf(false) }
     if (newGroupDialog) {
         GroupNameDialog(
             title = stringResource(R.string.shell_group_new),
@@ -810,13 +812,29 @@ private fun EditCommandDialog(
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth(),
             )
+            // The help icon sits above the command box; more entries can be added to the list as the command grows features.
+            Column {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                    IconButton(onClick = { showHelp = !showHelp }, modifier = Modifier.size(32.dp)) {
+                        Icon(Icons.Rounded.Info, contentDescription = stringResource(R.string.shell_help), modifier = Modifier.size(20.dp))
+                    }
+                }
+                if (showHelp) {
+                    Column(
+                        Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(12.dp)).padding(12.dp),
+                        verticalArrangement = Arrangement.spacedBy(10.dp),
+                    ) {
+                        HelpEntry("{package}", stringResource(R.string.shell_param_hint))
+                    }
+                }
+            }
             OutlinedTextField(
                 value = command,
                 onValueChange = { command = it },
                 label = { Text(stringResource(R.string.shell_command)) },
-                supportingText = { Text(stringResource(R.string.shell_param_hint)) },
+                // No maxLines: the field grows with its text and only the dialog's column scrolls. A field that
+                // scrolls inside a scrolling column fights it, and the view jumps while typing or selecting.
                 minLines = 3,
-                maxLines = 8,
                 textStyle = MaterialTheme.typography.bodyMedium.copy(
                     fontFamily = FontFamily.Monospace,
                     textDirection = TextDirection.Ltr,
@@ -1139,3 +1157,14 @@ private fun RunResultDialog(run: ShellRun, onDismiss: () -> Unit) {
 
 /** How often the log of a background command is re-read while it runs. */
 private const val LOG_FOLLOW_MS = 2_500L
+
+@Composable
+private fun HelpEntry(title: String, body: String) {
+    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        Text(
+            title,
+            style = MaterialTheme.typography.labelLarge.copy(fontFamily = FontFamily.Monospace, textDirection = TextDirection.Ltr),
+        )
+        Text(body, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    }
+}

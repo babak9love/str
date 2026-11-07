@@ -70,10 +70,12 @@
     <string name="shell_imported">%1$d دستور وارد شد</string>
     <string name="shell_import_failed">خواندن یا نوشتن فایل ممکن نشد</string>
     <string name="shell_param_pick_title">یک برنامه برای %1$s انتخاب کنید</string>
-    <string name="shell_param_search">جستجوی برنامه یا نوشتن نام پکیج</string>
+    <string name="shell_param_search">جستجو یا نام پکیج</string>
     <string name="shell_param_system">برنامه‌های سیستمی</string>
     <string name="shell_param_last">آخرین انتخاب</string>
     <string name="shell_param_use">استفاده از %1$s</string>
-    <string name="shell_param_hint">هر جا نام پکیج یک برنامه لازم است {package} بنویسید. برنامه را هنگام اجرا انتخاب می‌کنید.</string>
+    <string name="shell_param_hint">هنگام اجرا یک برنامه انتخاب می‌کنید و نام پکیج آن جایگزین می‌شود.</string>
     <string name="shell_param_empty">برنامه‌ای پیدا نشد</string>
+    <string name="shell_param_user">برنامه‌های کاربر</string>
+    <string name="shell_help">راهنما</string>
 </resources>
