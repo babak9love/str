@@ -801,10 +801,9 @@ private fun EditCommandDialog(
             TextButton(onClick = onDismiss) { Text(stringResource(R.string.common_cancel)) }
         },
     ) {
-        Column(
-            modifier = Modifier.heightIn(max = 420.dp).verticalScroll(rememberScrollState()),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
+        // The name and the command stay pinned; only the options below them scroll. The command field scrolls by
+        // itself when its text is long, and it is not inside another scrolling column, so the two never fight.
+        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
             OutlinedTextField(
                 value = name,
                 onValueChange = { name = it },
@@ -812,36 +811,43 @@ private fun EditCommandDialog(
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth(),
             )
-            // The help icon sits above the command box; more entries can be added to the list as the command grows features.
-            Column {
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                    IconButton(onClick = { showHelp = !showHelp }, modifier = Modifier.size(32.dp)) {
-                        Icon(Icons.Rounded.Info, contentDescription = stringResource(R.string.shell_help), modifier = Modifier.size(20.dp))
-                    }
-                }
-                if (showHelp) {
-                    Column(
-                        Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(12.dp)).padding(12.dp),
-                        verticalArrangement = Arrangement.spacedBy(10.dp),
-                    ) {
-                        HelpEntry("{package}", stringResource(R.string.shell_param_hint))
-                    }
+            // Help for the command: the icon sits inside the command box (top right); more entries can be added as the
+            // command grows features.
+            if (showHelp) {
+                Column(
+                    Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(12.dp)).padding(12.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
+                    HelpEntry("{package}", stringResource(R.string.shell_param_hint))
                 }
             }
+            Box(Modifier.fillMaxWidth()) {
             OutlinedTextField(
                 value = command,
                 onValueChange = { command = it },
                 label = { Text(stringResource(R.string.shell_command)) },
-                // No maxLines: the field grows with its text and only the dialog's column scrolls. A field that
-                // scrolls inside a scrolling column fights it, and the view jumps while typing or selecting.
                 minLines = 3,
+                maxLines = 4,
                 textStyle = MaterialTheme.typography.bodyMedium.copy(
                     fontFamily = FontFamily.Monospace,
                     textDirection = TextDirection.Ltr,
                 ),
                 keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.None, autoCorrectEnabled = false),
+                // Room at the end of the first line for the help icon, so text never runs under it.
+                trailingIcon = { Spacer(Modifier.width(32.dp)) },
                 modifier = Modifier.fillMaxWidth(),
             )
+                IconButton(
+                    onClick = { showHelp = !showHelp },
+                    modifier = Modifier.align(Alignment.TopEnd).padding(top = 12.dp, end = 8.dp).size(32.dp),
+                ) {
+                    Icon(Icons.Rounded.Info, contentDescription = stringResource(R.string.shell_help), modifier = Modifier.size(20.dp))
+                }
+            }
+            Column(
+                modifier = Modifier.heightIn(max = 180.dp).verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
             Text(stringResource(R.string.shell_group_title), style = MaterialTheme.typography.labelLarge)
             // One horizontally scrollable row: "No group" and "+ New group" stay first, then the groups.
             val chipsState = rememberLazyListState()
@@ -924,6 +930,7 @@ private fun EditCommandDialog(
             }
             if (onDuplicate != null) {
                 OutlinedButton(onClick = onDuplicate) { Text(stringResource(R.string.shell_duplicate)) }
+            }
             }
         }
     }

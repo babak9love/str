@@ -82,7 +82,8 @@ private fun ShellAppPickerContent(lastPackage: String?, onPick: (String) -> Unit
         }
     }
     var query by remember { mutableStateOf("") }
-    // User apps alone by default. Both on shows everything; either one alone shows only that kind.
+    // User apps alone by default. Both on shows everything; either one alone shows only that kind. The last used
+    // app is listed first, but only under the kind it belongs to.
     var showUser by remember { mutableStateOf(true) }
     var showSystem by remember { mutableStateOf(false) }
     val q = query.trim()
@@ -91,7 +92,7 @@ private fun ShellAppPickerContent(lastPackage: String?, onPick: (String) -> Unit
             .filter { a ->
                 val kindOk = showUser == showSystem || (if (showSystem) a.system else !a.system)
                 val textOk = q.isEmpty() || a.label.contains(q, ignoreCase = true) || a.packageName.contains(q, ignoreCase = true)
-                textOk && (kindOk || (q.isEmpty() && a.packageName == lastPackage))
+                textOk && kindOk
             }
             .sortedByDescending { it.packageName == lastPackage }
     }
