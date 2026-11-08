@@ -9,7 +9,7 @@ trap 'rm -rf "$WORK"' EXIT
 
 fetch() {
   local name="$1" sum="$2"
-  curl -fsSL --retry 4 -o "$WORK/$name" "$BASE/$name"
+  curl -fsSL --retry 8 --retry-delay 10 --retry-all-errors --connect-timeout 20 -o "$WORK/$name" "$BASE/$name"
   echo "$sum  $WORK/$name" | sha256sum -c -
   mkdir -p "$WORK/${name%.tgz}"
   tar -xzf "$WORK/$name" -C "$WORK/${name%.tgz}"
