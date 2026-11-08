@@ -92,7 +92,7 @@
     <string name="shell_tile_none">None</string>
     <string name="shell_tile_label">Shell %1$d</string>
     <string name="shell_tile_not_set">Not set</string>
-    <string name="shell_tile_hint">Add the tile from the Quick Settings edit panel (pencil icon). Tapping it runs this command without opening the app.</string>
+    <string name="shell_tile_hint">Add the tile from the Quick Settings edit panel (pencil icon). It runs this command without opening the app. With the status message on, the panel closes and the banner shows; with it off, the panel stays open and the tile lights up while the command runs.</string>
     <string name="shell_tile_1" translatable="false">Shell 1</string>
     <string name="shell_tile_2" translatable="false">Shell 2</string>
     <string name="shell_tile_3" translatable="false">Shell 3</string>

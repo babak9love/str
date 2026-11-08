@@ -92,6 +92,6 @@
     <string name="shell_tile_none">无</string>
     <string name="shell_tile_label">Shell %1$d</string>
     <string name="shell_tile_not_set">未设置</string>
-    <string name="shell_tile_hint">在快速设置的编辑面板（铅笔图标）中添加图块。点按即可运行此命令，无需打开应用。</string>
+    <string name="shell_tile_hint">在快速设置的编辑面板（铅笔图标）中添加图块。它无需打开应用即可运行此命令。开启状态消息时，面板会关闭并显示横幅；关闭时，面板保持打开，运行期间图块会亮起。</string>
     <string name="shell_tile_taken">此图块目前由“%1$s”使用，将转移到此命令。</string>
 </resources>
