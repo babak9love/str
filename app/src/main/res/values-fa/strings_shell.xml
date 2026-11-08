@@ -30,6 +30,7 @@
     <string name="shell_log_failed">ناموفق</string>
     <string name="shell_log_source_app">برنامه</string>
     <string name="shell_log_source_shortcut">میان‌بر</string>
+    <string name="shell_log_source_tile">کاشی</string>
     <string name="shell_banner_no_backend">Shizuku/روت در دسترس نیست</string>
     <string name="shell_run_with">اجرا با</string>
     <string name="shell_mode_auto">خودکار</string>
@@ -87,4 +88,9 @@
     <string name="shell_log_filter_empty">موردی پیدا نشد</string>
     <string name="shell_log_sort_newest">جدیدترین اول</string>
     <string name="shell_log_sort_oldest">قدیمی‌ترین اول</string>
+    <string name="shell_tile_setting">کاشی تنظیمات سریع</string>
+    <string name="shell_tile_none">هیچ</string>
+    <string name="shell_tile_label">شل %1$d</string>
+    <string name="shell_tile_not_set">تنظیم نشده</string>
+    <string name="shell_tile_hint">کاشی را از پنل ویرایش تنظیمات سریع (آیکون مداد) اضافه کن. با لمس آن، این دستور بدون باز شدن برنامه اجرا می‌شود.</string>
 </resources>

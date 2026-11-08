@@ -33,6 +33,7 @@ data class ActiveRun(
 object ShellRunTracker {
     private const val KEEP_CHARS = 20_000
     private const val PUBLISH_MS = 200L
+    private const val PULSE_MS = 1_500L
 
     private class Buffer {
         val text = StringBuilder()
@@ -46,6 +47,22 @@ object ShellRunTracker {
 
     /** The running commands by command id. */
     val runs: StateFlow<Map<String, ActiveRun>> = _runs.asStateFlow()
+
+    private val _pulses = MutableStateFlow<Set<String>>(emptySet())
+
+    /**
+     * Background commands that were just started. Nothing follows their end, so what is known is only "just started":
+     * the id stays here for [PULSE_MS] and is then dropped. The Quick Settings tile shows it as "on" for that time.
+     */
+    val pulses: StateFlow<Set<String>> = _pulses.asStateFlow()
+
+    fun pulse(id: String) {
+        _pulses.update { it + id }
+        scope.launch {
+            delay(PULSE_MS)
+            _pulses.update { it - id }
+        }
+    }
 
     fun start(command: SavedCommand, source: String, entryId: String = "") {
         buffers[command.id] = Buffer()

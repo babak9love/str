@@ -154,7 +154,12 @@ class ShellShortcutActivity : ComponentActivity() {
                 window.addFlags(WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE or WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE)
             }
             if (command.showStatus) banner.value = Banner.Running(command.name)
-            var result = ShellExecutor.runLogged(applicationContext, command, ShellLogSource.SHORTCUT)
+            var result = ShellExecutor.runLogged(
+                applicationContext,
+                command,
+                // Only the two known values are accepted; anything else counts as a plain shortcut.
+                if (intent.getStringExtra(ShellShortcuts.EXTRA_SOURCE) == ShellLogSource.TILE) ShellLogSource.TILE else ShellLogSource.SHORTCUT,
+            )
             if (!command.showStatus) {
                 finish()
                 return@launch

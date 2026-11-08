@@ -97,6 +97,7 @@ import dev.cluvex.strata.core.data.EditorPrefs
 import dev.cluvex.strata.core.data.SettingsBackup
 import dev.cluvex.strata.core.media.FolderBadgeStore
 import dev.cluvex.strata.core.shell.ShellCommandStore
+import dev.cluvex.strata.core.shell.ShellTiles
 import dev.cluvex.strata.core.shell.ShellGroupStore
 import dev.cluvex.strata.core.shell.ShellShortcuts
 import dev.cluvex.strata.core.data.StrataSettings
@@ -580,7 +581,8 @@ fun BackupPage(act: SettingsActions, activeFolder: String, onBack: () -> Unit) {
                             val byId = incoming.associateBy { it.id }
                             val current = store.load()
                             val known = current.mapTo(HashSet()) { it.id }
-                            val merged = current.map { byId[it.id] ?: it } + byId.values.filter { it.id !in known }
+                            // The tile slots of the restored commands win over the ones set here since.
+                            val merged = ShellTiles.resolve(current.map { byId[it.id] ?: it } + byId.values.filter { it.id !in known }, byId.keys)
                             store.save(merged)
                             ShellShortcuts.publish(context.applicationContext, merged)
                         }

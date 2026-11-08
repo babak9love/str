@@ -7,6 +7,7 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.Checkbox
 import androidx.compose.material.icons.rounded.FilterList
+import androidx.compose.material.icons.rounded.GridView
 import androidx.compose.material.icons.rounded.Shortcut
 import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.foundation.layout.size
@@ -249,8 +250,7 @@ private fun logText(e: LogEntry): String = e.output
 private fun LogItem(entry: LogEntry, backgroundRunning: Boolean, expanded: Boolean, dateText: String, onToggle: () -> Unit, onCopy: () -> Unit) {
     val sep = stringResource(R.string.common_separator)
     val outcome = shellOutcome(backgroundRunning, entry.timedOut, entry.stopped, entry.exitCode)
-    val source = stringResource(if (entry.source == ShellLogSource.SHORTCUT) R.string.shell_log_source_shortcut else R.string.shell_log_source_app)
-    val fromShortcut = entry.source == ShellLogSource.SHORTCUT
+    val source = stringResource(sourceLabel(entry.source))
     val metaBase = shellStatusLine(outcome, entry.backend, entry.exitCode, entry.durationMs)
     // The run source is shown as a small icon plus a short word: play = started in the app, arrow = started from a shortcut.
     val meta = buildAnnotatedString {
@@ -262,7 +262,7 @@ private fun LogItem(entry: LogEntry, backgroundRunning: Boolean, expanded: Boole
     }
     val sourceInline = mapOf(
         "source" to InlineTextContent(Placeholder(14.sp, 14.sp, PlaceholderVerticalAlign.TextCenter)) {
-            Icon(if (fromShortcut) Icons.Rounded.Shortcut else Icons.Rounded.PlayArrow, contentDescription = null, modifier = Modifier.size(14.dp))
+            Icon(sourceIcon(entry.source), contentDescription = null, modifier = Modifier.size(14.dp))
         },
     )
     val mono = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace, textDirection = TextDirection.Ltr)
@@ -381,7 +381,7 @@ private fun LogItem(entry: LogEntry, backgroundRunning: Boolean, expanded: Boole
 @Composable
 private fun ActiveRunItem(run: ActiveRun, expanded: Boolean, dateText: String, onToggle: () -> Unit) {
     val sep = stringResource(R.string.common_separator)
-    val source = stringResource(if (run.source == ShellLogSource.SHORTCUT) R.string.shell_log_source_shortcut else R.string.shell_log_source_app)
+    val source = stringResource(sourceLabel(run.source))
     val primary = MaterialTheme.colorScheme.primary
     val runningWord = stringResource(R.string.shell_log_running)
     val meta = buildAnnotatedString {
@@ -535,3 +535,15 @@ internal fun ShellStatusIcon(outcome: ShellOutcome) {
 
 /** How often the log of a background command is re-read while it runs. */
 private const val LOG_FOLLOW_MS = 2_500L
+
+private fun sourceLabel(source: String): Int = when (source) {
+    ShellLogSource.SHORTCUT -> R.string.shell_log_source_shortcut
+    ShellLogSource.TILE -> R.string.shell_log_source_tile
+    else -> R.string.shell_log_source_app
+}
+
+private fun sourceIcon(source: String) = when (source) {
+    ShellLogSource.SHORTCUT -> Icons.Rounded.Shortcut
+    ShellLogSource.TILE -> Icons.Rounded.GridView
+    else -> Icons.Rounded.PlayArrow
+}

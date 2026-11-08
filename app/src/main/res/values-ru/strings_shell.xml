@@ -30,6 +30,7 @@
     <string name="shell_log_failed">Ошибка</string>
     <string name="shell_log_source_app">Приложение</string>
     <string name="shell_log_source_shortcut">Ярлык</string>
+    <string name="shell_log_source_tile">Плитка</string>
     <string name="shell_banner_no_backend">Shizuku/root недоступны</string>
     <string name="shell_run_with">Запускать через</string>
     <string name="shell_mode_auto">Авто</string>
@@ -87,4 +88,9 @@
     <string name="shell_log_filter_empty">Записи не найдены</string>
     <string name="shell_log_sort_newest">Сначала новые</string>
     <string name="shell_log_sort_oldest">Сначала старые</string>
+    <string name="shell_tile_setting">Плитка быстрых настроек</string>
+    <string name="shell_tile_none">Нет</string>
+    <string name="shell_tile_label">Shell %1$d</string>
+    <string name="shell_tile_not_set">Не задана</string>
+    <string name="shell_tile_hint">Добавьте плитку в панели редактирования быстрых настроек (значок карандаша). Нажатие запускает команду без открытия приложения.</string>
 </resources>

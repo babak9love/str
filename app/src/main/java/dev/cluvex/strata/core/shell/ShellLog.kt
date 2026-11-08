@@ -15,6 +15,7 @@ import java.util.UUID
 object ShellLogSource {
     const val APP = "app"
     const val SHORTCUT = "shortcut"
+    const val TILE = "tile"
 }
 
 @Serializable
@@ -154,7 +155,7 @@ object ShellExecutor {
             // a background command only prints a short "started" message and has its log file instead.
             val live = !command.detached
             val entryId = UUID.randomUUID().toString()
-            if (live) ShellRunTracker.start(command, source, entryId)
+            if (live) ShellRunTracker.start(command, source, entryId) else ShellRunTracker.pulse(command.id)
             val result = try {
                 ShellRunner.run(
                     if (command.detached) ShellRunner.detach(command.id, command.command, command.timeoutSec) else command.command,

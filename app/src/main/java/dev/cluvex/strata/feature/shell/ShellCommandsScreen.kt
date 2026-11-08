@@ -107,6 +107,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
@@ -431,14 +432,14 @@ fun ShellCommandsScreen(onBack: () -> Unit, vm: ShellCommandsViewModel = viewMod
                     Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(12.dp)) {
                         ExtendedFloatingActionButton(
                             text = { Text(stringResource(R.string.shell_group_new)) },
-                            icon = { Icon(Icons.Rounded.CreateNewFolder, contentDescription = null) },
+                            icon = { FabMenuIcon(Icons.Rounded.CreateNewFolder) },
                             onClick = { fabOpen = false; newGroupDialog = true },
                             containerColor = cardColor,
                             contentColor = MaterialTheme.colorScheme.onSurface,
                         )
                         ExtendedFloatingActionButton(
                             text = { Text(stringResource(R.string.shell_add)) },
-                            icon = { Icon(Icons.Rounded.Terminal, contentDescription = null) },
+                            icon = { FabMenuIcon(Icons.Rounded.Terminal) },
                             onClick = { fabOpen = false; editing = EditTarget(null) },
                             containerColor = cardColor,
                             contentColor = MaterialTheme.colorScheme.onSurface,
@@ -567,8 +568,8 @@ fun ShellCommandsScreen(onBack: () -> Unit, vm: ShellCommandsViewModel = viewMod
             existing = target.command,
             groups = ui.groups,
             onNewGroup = vm::addGroup,
-            onSave = { name, command, shortcut, mode, timeoutSec, detached, confirm, showStatus, group ->
-                vm.save(target.command?.id, name, command, shortcut, mode, timeoutSec, detached, confirm, showStatus, group)
+            onSave = { name, command, shortcut, mode, timeoutSec, detached, confirm, showStatus, group, tile ->
+                vm.save(target.command?.id, name, command, shortcut, mode, timeoutSec, detached, confirm, showStatus, group, tile)
                 editing = null
             },
             onDelete = target.command?.let { c -> { vm.delete(c.id); editing = null } },
@@ -845,7 +846,7 @@ private fun EditCommandDialog(
     existing: SavedCommand?,
     groups: List<String>,
     onNewGroup: (String) -> Unit,
-    onSave: (name: String, command: String, shortcut: Boolean, mode: ShellMode, timeoutSec: Int, detached: Boolean, confirm: Boolean, showStatus: Boolean, group: String) -> Unit,
+    onSave: (name: String, command: String, shortcut: Boolean, mode: ShellMode, timeoutSec: Int, detached: Boolean, confirm: Boolean, showStatus: Boolean, group: String, tile: Int) -> Unit,
     onDelete: (() -> Unit)?,
     onDuplicate: (() -> Unit)?,
     onPin: (() -> Unit)?,
@@ -860,6 +861,7 @@ private fun EditCommandDialog(
     var confirm by remember { mutableStateOf(existing?.confirm ?: false) }
     var showStatus by remember { mutableStateOf(existing?.showStatus ?: true) }
     var group by remember { mutableStateOf(existing?.group.orEmpty()) }
+    var tile by remember { mutableStateOf(existing?.tile ?: 0) }
     var newGroupDialog by remember { mutableStateOf(false) }
     var showHelp by remember { mutableStateOf(false) }
     if (newGroupDialog) {
@@ -876,7 +878,7 @@ private fun EditCommandDialog(
         title = stringResource(if (existing == null) R.string.shell_add else R.string.shell_edit),
         icon = Icons.Rounded.Terminal,
         confirmButton = {
-            TextButton(onClick = { onSave(name, command, shortcut, mode, timeoutSec, detached, confirm, showStatus, group) }, enabled = command.isNotBlank()) {
+            TextButton(onClick = { onSave(name, command, shortcut, mode, timeoutSec, detached, confirm, showStatus, group, tile) }, enabled = command.isNotBlank()) {
                 Text(stringResource(R.string.common_save))
             }
         },
@@ -955,6 +957,20 @@ private fun EditCommandDialog(
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text(stringResource(R.string.shell_shortcut), modifier = Modifier.weight(1f))
                 Switch(checked = shortcut, onCheckedChange = { shortcut = it })
+            }
+            Text(stringResource(R.string.shell_tile_setting), style = MaterialTheme.typography.labelLarge)
+            Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                FilterChip(selected = tile == 0, onClick = { tile = 0 }, label = { Text(stringResource(R.string.shell_tile_none)) })
+                for (n in 1..dev.cluvex.strata.core.shell.ShellTiles.SLOTS) {
+                    FilterChip(selected = tile == n, onClick = { tile = n }, label = { Text(n.toString()) })
+                }
+            }
+            if (tile != 0) {
+                Text(
+                    stringResource(R.string.shell_tile_hint),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
             }
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text(stringResource(R.string.shell_confirm_switch), modifier = Modifier.weight(1f))
@@ -1262,5 +1278,22 @@ private fun HelpEntry(title: String, body: String) {
             style = MaterialTheme.typography.labelLarge.copy(fontFamily = FontFamily.Monospace, textDirection = TextDirection.Ltr),
         )
         Text(body, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    }
+}
+
+
+/** The same cookie-shaped badge a command row puts behind its icon, reused for the + menu items. */
+@Composable
+private fun FabMenuIcon(icon: ImageVector) {
+    val colors = MaterialTheme.colorScheme
+    val morph = rememberPolygonMorph(MaterialShapes.Cookie9Sided, MaterialShapes.Cookie9Sided)
+    Box(
+        Modifier
+            .size(40.dp)
+            .clip(MorphShape(morph, 0f))
+            .background(colors.primaryContainer),
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(icon, contentDescription = null, tint = colors.onPrimaryContainer, modifier = Modifier.size(22.dp))
     }
 }

@@ -14,6 +14,7 @@ import dev.cluvex.strata.core.shell.ShellMode
 import dev.cluvex.strata.core.shell.ShellResult
 import dev.cluvex.strata.core.shell.ShellRunner
 import dev.cluvex.strata.core.shell.ShellShortcuts
+import dev.cluvex.strata.core.shell.ShellTiles
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -105,14 +106,18 @@ class ShellCommandsViewModel(app: Application) : AndroidViewModel(app) {
         confirm: Boolean = false,
         showStatus: Boolean = true,
         group: String = "",
+        tile: Int = 0,
     ) {
         val cmd = command.trim()
         if (cmd.isEmpty()) return
         val label = name.trim().ifEmpty { cmd.lineSequence().first().take(40) }
         _state.value.commands.firstOrNull { it.id == id }?.let { old -> if (old.detached && !detached) cleanupFiles(old) }
+        val targetId = id ?: UUID.randomUUID().toString()
         change { list ->
-            if (id == null) list + SavedCommand(UUID.randomUUID().toString(), label, cmd, shortcut, mode, timeoutSec, detached, confirm, showStatus, group.trim())
-            else list.map { if (it.id == id) it.copy(name = label, command = cmd, shortcut = shortcut, mode = mode, timeoutSec = timeoutSec, detached = detached, confirm = confirm, showStatus = showStatus, group = group.trim()) else it }
+            val edited = if (id == null) list + SavedCommand(targetId, label, cmd, shortcut, mode, timeoutSec, detached, confirm, showStatus, group.trim(), tile)
+            else list.map { if (it.id == id) it.copy(name = label, command = cmd, shortcut = shortcut, mode = mode, timeoutSec = timeoutSec, detached = detached, confirm = confirm, showStatus = showStatus, group = group.trim(), tile = tile) else it }
+            // A tile slot runs one command: choosing it here takes it from whichever command had it.
+            ShellTiles.resolve(edited, setOf(targetId))
         }
     }
 
@@ -122,7 +127,7 @@ class ShellCommandsViewModel(app: Application) : AndroidViewModel(app) {
         if (index < 0) list
         else {
             val original = list[index]
-            val copy = original.copy(id = UUID.randomUUID().toString(), name = copyName(original.name), shortcut = false)
+            val copy = original.copy(id = UUID.randomUUID().toString(), name = copyName(original.name), shortcut = false, tile = 0)
             list.toMutableList().apply { add(index + 1, copy) }
         }
     }
@@ -169,7 +174,8 @@ class ShellCommandsViewModel(app: Application) : AndroidViewModel(app) {
                     result += c.copy(id = id)
                     added++
                 }
-                result
+                // Slots already used on this device stay with their commands; imported ones only get free slots.
+                ShellTiles.resolve(result, list.mapTo(HashSet()) { it.id })
             }
             onDone(added)
         }

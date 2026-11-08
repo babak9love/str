@@ -43,6 +43,8 @@ data class SavedCommand(
     val showStatus: Boolean = true,
     /** Name of the group this command is listed under; empty = not in a group. */
     val group: String = "",
+    /** Quick Settings tile (1..[ShellTiles.SLOTS]) that runs this command; 0 = none. Part of exports and backups. */
+    val tile: Int = 0,
 )
 
 enum class ShellBackend { SHIZUKU, ROOT }
@@ -510,6 +512,8 @@ object ShellRunner {
 /** Publishes the commands marked "show in the app-icon menu" as launcher shortcuts, named after the command. */
 object ShellShortcuts {
     const val EXTRA_ID = "dev.cluvex.strata.extra.SHELL_COMMAND_ID"
+    /** Who started the run: [ShellLogSource.TILE] for the Quick Settings tile; missing means a launcher shortcut. */
+    const val EXTRA_SOURCE = "dev.cluvex.strata.extra.SHELL_RUN_SOURCE"
 
     /** Asks the launcher to pin a shortcut for [command] on the home screen; false if the launcher can't do it. */
     fun pin(context: Context, command: SavedCommand): Boolean = runCatching {

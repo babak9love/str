@@ -129,6 +129,50 @@
             android:taskAffinity=""
             android:theme="@style/Theme.Strata.ShellBanner" />
 
+        <service
+            android:name=".feature.shell.ShellTile1"
+            android:exported="true"
+            android:icon="@drawable/ic_tile_shell"
+            android:label="@string/shell_tile_1"
+            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE">
+            <intent-filter>
+                <action android:name="android.service.quicksettings.action.QS_TILE" />
+            </intent-filter>
+        </service>
+
+        <service
+            android:name=".feature.shell.ShellTile2"
+            android:exported="true"
+            android:icon="@drawable/ic_tile_shell"
+            android:label="@string/shell_tile_2"
+            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE">
+            <intent-filter>
+                <action android:name="android.service.quicksettings.action.QS_TILE" />
+            </intent-filter>
+        </service>
+
+        <service
+            android:name=".feature.shell.ShellTile3"
+            android:exported="true"
+            android:icon="@drawable/ic_tile_shell"
+            android:label="@string/shell_tile_3"
+            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE">
+            <intent-filter>
+                <action android:name="android.service.quicksettings.action.QS_TILE" />
+            </intent-filter>
+        </service>
+
+        <service
+            android:name=".feature.shell.ShellTile4"
+            android:exported="true"
+            android:icon="@drawable/ic_tile_shell"
+            android:label="@string/shell_tile_4"
+            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE">
+            <intent-filter>
+                <action android:name="android.service.quicksettings.action.QS_TILE" />
+            </intent-filter>
+        </service>
+
         <activity-alias
             android:name=".ShareCopy"
             android:exported="true"
