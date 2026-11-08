@@ -16,8 +16,12 @@ fun CodeEditorView(controller: EditorController, modifier: Modifier = Modifier) 
             object : CodeEditor(context) {
                 // The selection handles hang below the selected line. When that is the last line the editor could not
                 // scroll any further, so the handles fell outside the view (under the symbol bar) and could not be
-                // grabbed. A little extra scroll range after the last line leaves room for them.
-                override fun getScrollMaxY(): Int = super.getScrollMaxY() + height / 3
+                // grabbed. A small extra scroll range after the last line leaves room for them: about the height of the
+                // handle (a couple of text rows, at least 48dp) rather than a big share of the screen.
+                override fun getScrollMaxY(): Int {
+                    val handleRoom = maxOf(rowHeight * 2, (48 * resources.displayMetrics.density).toInt())
+                    return super.getScrollMaxY() + handleRoom
+                }
             }.apply {
                 tag = CODE_EDITOR_TAG
                 layoutDirection = View.LAYOUT_DIRECTION_LTR

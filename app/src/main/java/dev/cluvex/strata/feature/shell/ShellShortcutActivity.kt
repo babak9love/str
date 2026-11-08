@@ -130,12 +130,6 @@ class ShellShortcutActivity : ComponentActivity() {
                     )
                 }
             }
-            Box(
-                Modifier.windowInsetsPadding(WindowInsets.statusBars).padding(start = 8.dp, end = 8.dp, top = 8.dp),
-                contentAlignment = Alignment.TopCenter,
-            ) {
-                current?.let { StrataTheme(appearance = appearance) { BannerPill(it, onTap = { finish() }) } }
-            }
         }
 
         val id = intent.getStringExtra(ShellShortcuts.EXTRA_ID)
@@ -148,8 +142,7 @@ class ShellShortcutActivity : ComponentActivity() {
                 ShellCommandStore(applicationContext).load().firstOrNull { it.id == id }
             }
             if (stored == null) {
-                banner.value = Banner.Done(getString(R.string.shell_not_found), ok = false, detail = null)
-                delay(2_500)
+                ShellStatusNotifier.show(applicationContext, "not_found", getString(R.string.shell_not_found), null, ShellStatusNotifier.Kind.FAIL)
                 finish()
                 return@launch
             }
@@ -179,39 +172,30 @@ class ShellShortcutActivity : ComponentActivity() {
                 }
                 bannerOnly()
             }
-            if (command.showStatus) banner.value = Banner.Running(command.name)
-            // Only the two known values are accepted; anything else counts as a plain shortcut.
+            // The status is shown as a heads-up notification, not as a window of this screen: a window on top of another app takes
+            // the touches of that app for as long as it is shown. The run belongs to the process, so this screen can
+            // finish right away and nothing is left on top of the app behind.
             val source = if (intent.getStringExtra(ShellShortcuts.EXTRA_SOURCE) == ShellLogSource.TILE) ShellLogSource.TILE else ShellLogSource.SHORTCUT
-            // The run belongs to the process, not to this screen, so it goes on if the banner is dismissed early.
-            val run = runScope.async { ShellExecutor.runLogged(applicationContext, command, source) }
-            var result = if (command.showStatus && !command.detached) {
-                // A long command (a logcat, say) must not keep the banner up until it ends: after a few seconds the banner
-                // goes away and the command carries on; its result is then only in the history.
-                withTimeoutOrNull(BANNER_RUNNING_MAX_MS) { run.await() }
-            } else {
-                run.await()
+            val app = applicationContext
+            val cmd = command
+            if (cmd.showStatus) ShellStatusNotifier.show(app, cmd.id, cmd.name, app.getString(R.string.shell_log_running), ShellStatusNotifier.Kind.RUNNING)
+            runScope.launch {
+                var result = ShellExecutor.runLogged(app, cmd, source)
+                if (!cmd.showStatus) return@launch
+                var stillRunning = false
+                if (cmd.detached && result.backend != null && !result.timedOut && result.exitCode == 0) {
+                    // For a background command "started" is all runLogged knows: give a quick failure a few seconds to show.
+                    val end = ShellExecutor.awaitDetachedEnd(app, cmd, DETACHED_BANNER_WAIT_MS)
+                    if (end == null) stillRunning = true
+                    else result = result.copy(exitCode = end.exitCode, timedOut = end.timedOut, stopped = end.stopped)
+                }
+                if (stillRunning) {
+                    ShellStatusNotifier.show(app, cmd.id, cmd.name, app.getString(R.string.shell_log_running), ShellStatusNotifier.Kind.RUNNING)
+                } else {
+                    val (ok, detail) = doneInfo(app, result)
+                    ShellStatusNotifier.show(app, cmd.id, cmd.name, detail, if (ok) ShellStatusNotifier.Kind.OK else ShellStatusNotifier.Kind.FAIL)
+                }
             }
-            if (result == null) {
-                // Still going: say so, like a background command's banner does, and then go away; the command carries on.
-                banner.value = Banner.Notice(command.name, getString(R.string.shell_log_running))
-                delay(1_800)
-                finish()
-                return@launch
-            }
-            if (!command.showStatus) {
-                finish()
-                return@launch
-            }
-            var stillRunning = false
-            if (command.detached && result.backend != null && !result.timedOut && result.exitCode == 0) {
-                // For a background command "started" is all runLogged knows. A command that fails at once is the usual
-                // case, so give it a few seconds: if it ends, the banner shows how it really ended; if not, it is running.
-                val end = ShellExecutor.awaitDetachedEnd(applicationContext, command, DETACHED_BANNER_WAIT_MS)
-                if (end == null) stillRunning = true
-                else result = result.copy(exitCode = end.exitCode, timedOut = end.timedOut, stopped = end.stopped)
-            }
-            banner.value = if (stillRunning) Banner.Notice(command.name, getString(R.string.shell_log_running)) else done(command.name, result)
-            delay(if (result.backend != null && !result.timedOut && result.exitCode == 0) 1_800 else 3_000)
             finish()
         }
     }
@@ -227,17 +211,15 @@ class ShellShortcutActivity : ComponentActivity() {
         val runScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     }
 
-    private fun done(name: String, result: ShellResult): Banner.Done = when {
-        result.stopped -> Banner.Done(name, ok = true, detail = getString(R.string.shell_log_stopped))
-        result.backend == null -> Banner.Done(name, ok = false, detail = getString(R.string.shell_banner_no_backend))
-        result.timedOut -> Banner.Done(name, ok = false, detail = getString(R.string.shell_log_timed_out))
-        result.exitCode != 0 -> Banner.Done(
-            name,
-            ok = false,
-            // Same words as the history: "Failed · exit code 1".
-            detail = getString(R.string.shell_log_failed) + getString(R.string.common_separator) + getString(R.string.shell_exit_code, result.exitCode),
-        )
-        else -> Banner.Done(name, ok = true, detail = null)
+    private fun doneInfo(context: android.content.Context, result: ShellResult): Pair<Boolean, String?> {
+        val sep = context.getString(R.string.common_separator)
+        return when {
+            result.stopped -> true to context.getString(R.string.shell_log_stopped)
+            result.backend == null -> false to context.getString(R.string.shell_banner_no_backend)
+            result.timedOut -> false to context.getString(R.string.shell_log_timed_out)
+            result.exitCode != 0 -> false to (context.getString(R.string.shell_log_failed) + sep + context.getString(R.string.shell_exit_code, result.exitCode))
+            else -> true to null
+        }
     }
 }
 
