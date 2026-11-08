@@ -127,6 +127,7 @@ import dev.cluvex.strata.core.shell.SavedCommand
 import androidx.compose.ui.platform.LocalContext
 import dev.cluvex.strata.core.shell.ShellExecutor
 import dev.cluvex.strata.core.shell.ShellLogStore
+import dev.cluvex.strata.core.shell.ShellRunTracker
 import dev.cluvex.strata.core.shell.LogEntry
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -155,6 +156,9 @@ private class EditTarget(val command: SavedCommand?)
 @Composable
 fun ShellCommandsScreen(onBack: () -> Unit, vm: ShellCommandsViewModel = viewModel()) {
     val ui by vm.state.collectAsState()
+    // Commands running right now, whoever started them: this screen, a launcher shortcut or a Quick Settings tile.
+    // (A command started here is also in the view model's own list; the others are only in this one.)
+    val tracked by ShellRunTracker.runs.collectAsState()
     var editing by remember { mutableStateOf<EditTarget?>(null) }
     var showLog by remember { mutableStateOf(false) }
     // Opened from a tile's long press while a command runs: go straight to the log, where the live output is.
@@ -524,14 +528,14 @@ fun ShellCommandsScreen(onBack: () -> Unit, vm: ShellCommandsViewModel = viewMod
                                 ) {
                                     CommandCard(
                                         command = c,
-                                        running = c.id in ui.runningIds || c.id in ui.backgroundIds,
+                                        running = c.id in ui.runningIds || c.id in ui.backgroundIds || c.id in tracked,
                                         blocked = false,
                                         lifted = lifted,
                                         dragOffset = { dragOffset },
                                         // While a command runs, its button opens its output (or log) instead of starting it again.
                                         onRun = {
                                             when {
-                                                c.id in ui.runningIds -> if (!c.detached) { vm.followRun(c.id); liveId = c.id }
+                                                c.id in ui.runningIds || c.id in tracked -> if (!c.detached) { vm.followRun(c.id); liveId = c.id }
                                                 c.id in ui.backgroundIds -> backgroundCmd = c
                                                 ShellParams.needsPackage(c.command) -> pickFor = c
                                                 c.confirm -> confirming = c
@@ -700,7 +704,7 @@ fun ShellCommandsScreen(onBack: () -> Unit, vm: ShellCommandsViewModel = viewMod
     // result in the same dialog, so Stop does not close it and open a second one. Closing it clears that result.
     val followed = liveId
     val followedResult = followed?.let { id -> ui.runs.lastOrNull { it.command.id == id && !it.command.detached } }
-    val liveActive = followed?.let { it in ui.runningIds } == true
+    val liveActive = followed?.let { it in ui.runningIds || it in tracked } == true
     if (followed != null && (liveActive || followedResult != null)) {
         LiveOutputDialog(
             commandId = followed,
@@ -708,7 +712,7 @@ fun ShellCommandsScreen(onBack: () -> Unit, vm: ShellCommandsViewModel = viewMod
             onDismiss = {
                 liveId = null
                 // Closed while still running: it goes on, but its end does not pop a dialog up later.
-                if (liveActive) vm.silenceRun(followed)
+                if (followed in ui.runningIds) vm.silenceRun(followed)
                 followedResult?.let { vm.dismissRun(it) }
             },
         )

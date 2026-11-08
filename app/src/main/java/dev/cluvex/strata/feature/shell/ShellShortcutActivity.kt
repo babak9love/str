@@ -10,7 +10,8 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.clickable
+import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
@@ -78,16 +79,27 @@ class ShellShortcutActivity : ComponentActivity() {
     private val pickAnswer = CompletableDeferred<List<String>?>()
     private val answer = CompletableDeferred<Boolean>()
 
+    /** Banner mode: never takes the keyboard focus, and touches outside the banner go to what is behind. */
+    private fun bannerOnly() {
+        window.addFlags(WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL)
+    }
+
+    /** While a question dialog is shown the window takes focus and touches like any dialog host. */
+    private fun dialogMode() {
+        window.clearFlags(WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL)
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         WindowCompat.setDecorFitsSystemWindows(window, false)
-        window.addFlags(WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE or WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE)
-        // Only the banner strip at the top is covered, not the whole screen, and the window is a little see-through:
-        // Android blocks touches that pass through an almost opaque window of another app, which made the screen
-        // behind the banner unusable until the command ended.
-        window.setGravity(Gravity.TOP)
-        window.setLayout(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
-        window.attributes = window.attributes.also { it.alpha = BANNER_WINDOW_ALPHA }
+        // The window is only as big as the banner itself, at the top, and takes touches only inside that area (a tap
+        // on the banner dismisses it). Everything outside it is not covered by the window at all, so the app behind
+        // keeps working. A full-screen window that "lets touches through" does not do that: from Android 12 the
+        // system blocks touches that pass through a window of another app, and this one is another app's window
+        // whenever the banner shows over something else.
+        window.setGravity(Gravity.TOP or Gravity.CENTER_HORIZONTAL)
+        window.setLayout(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT)
+        bannerOnly()
         setContent {
             // The dialogs use the app's own theme (its light/dark choice and colors), not just the system's dark mode.
             val settingsFlow = remember { SettingsRepository(applicationContext).settings.catch { emit(StrataSettings()) } }
@@ -117,10 +129,10 @@ class ShellShortcutActivity : ComponentActivity() {
                 }
             }
             Box(
-                Modifier.fillMaxWidth().windowInsetsPadding(WindowInsets.statusBars).padding(start = 16.dp, end = 16.dp, top = 8.dp),
+                Modifier.windowInsetsPadding(WindowInsets.statusBars).padding(start = 8.dp, end = 8.dp, top = 8.dp),
                 contentAlignment = Alignment.TopCenter,
             ) {
-                current?.let { StrataTheme(appearance = appearance) { BannerPill(it) } }
+                current?.let { StrataTheme(appearance = appearance) { BannerPill(it, onTap = { finish() }) } }
             }
         }
 
@@ -142,7 +154,7 @@ class ShellShortcutActivity : ComponentActivity() {
             var command: SavedCommand = stored
             if (ShellParams.needsPackage(command.command)) {
                 // A command with {package} asks which app first; the shortcut cannot carry that choice itself.
-                window.clearFlags(WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE or WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE)
+                dialogMode()
                 pickFor.value = command
                 val pkgs = pickAnswer.await()
                 pickFor.value = null
@@ -152,10 +164,10 @@ class ShellShortcutActivity : ComponentActivity() {
                 }
                 ShellParams.rememberPackage(applicationContext, command.id, pkgs.last())
                 command = ShellParams.resolveAll(command, pkgs)
-                window.addFlags(WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE or WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE)
+                bannerOnly()
             }
             if (command.confirm) {
-                window.clearFlags(WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE or WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE)
+                dialogMode()
                 confirmFor.value = command
                 val ok = answer.await()
                 confirmFor.value = null
@@ -163,7 +175,7 @@ class ShellShortcutActivity : ComponentActivity() {
                     finish()
                     return@launch
                 }
-                window.addFlags(WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE or WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE)
+                bannerOnly()
             }
             if (command.showStatus) banner.value = Banner.Running(command.name)
             // Only the two known values are accepted; anything else counts as a plain shortcut.
@@ -209,9 +221,6 @@ class ShellShortcutActivity : ComponentActivity() {
 
         /** Runs the commands; it is not tied to the screen, which closes while a long command still runs. */
         val runScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
-
-        /** Android lets touches through a window of another app only if it is at most 80% opaque. */
-        const val BANNER_WINDOW_ALPHA = 0.75f
     }
 
     private fun done(name: String, result: ShellResult): Banner.Done = when {
@@ -229,7 +238,7 @@ class ShellShortcutActivity : ComponentActivity() {
 }
 
 @Composable
-private fun BannerPill(banner: Banner) {
+private fun BannerPill(banner: Banner, onTap: () -> Unit) {
     // The pill has the same colors as the app's dialogs (their container color and the text color made for it), so it
     // is dark in a dark theme and light in a light one. The check and cross colors are picked so they show on either.
     val surface = MaterialTheme.colorScheme.surfaceContainerHigh
@@ -237,7 +246,12 @@ private fun BannerPill(banner: Banner) {
     val onDark = surface.luminance() < 0.5f
     val okColor = if (onDark) Color(0xFF7BE08B) else Color(0xFF1B7F2E)
     val failColor = if (onDark) Color(0xFFFF7A70) else Color(0xFFB3261E)
-    Surface(shape = RoundedCornerShape(28.dp), color = surface.copy(alpha = 0.97f), shadowElevation = 6.dp) {
+    Surface(
+        modifier = Modifier.clip(RoundedCornerShape(28.dp)).clickable(onClick = onTap),
+        shape = RoundedCornerShape(28.dp),
+        color = surface.copy(alpha = 0.97f),
+        shadowElevation = 6.dp,
+    ) {
         Row(
             Modifier.padding(horizontal = 18.dp, vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
