@@ -1283,6 +1283,7 @@ private fun HelpEntry(title: String, body: String) {
 
 
 /** The same cookie-shaped badge a command row puts behind its icon, reused for the + menu items. */
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 private fun FabMenuIcon(icon: ImageVector) {
     val colors = MaterialTheme.colorScheme
