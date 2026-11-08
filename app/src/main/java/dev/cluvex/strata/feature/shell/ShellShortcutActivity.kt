@@ -65,12 +65,14 @@ import kotlinx.coroutines.withContext
 internal sealed interface Banner {
     data class Running(val name: String) : Banner
     data class Done(val name: String, val ok: Boolean, val detail: String?) : Banner
+    /** A plain notice without a check or cross, e.g. "name · Running" for a command that is still going. */
+    data class Notice(val name: String, val detail: String) : Banner
 }
 
 /**
  * Target of the launcher shortcuts. It has no screen of its own: it looks the command up by id (so an intent
  * can never carry its own command text), runs it, shows a small banner at the top of the screen, records the
- * run in the log and finishes. The window lets touches through to whatever is behind it.
+ * run in the log and finishes. The window is only as big as the banner, so the screen behind stays usable.
  */
 class ShellShortcutActivity : ComponentActivity() {
     private val banner = MutableStateFlow<Banner?>(null)
@@ -190,7 +192,9 @@ class ShellShortcutActivity : ComponentActivity() {
                 run.await()
             }
             if (result == null) {
-                banner.value = null
+                // Still going: say so, like a background command's banner does, and then go away; the command carries on.
+                banner.value = Banner.Notice(command.name, getString(R.string.shell_log_running))
+                delay(1_800)
                 finish()
                 return@launch
             }
@@ -206,7 +210,7 @@ class ShellShortcutActivity : ComponentActivity() {
                 if (end == null) stillRunning = true
                 else result = result.copy(exitCode = end.exitCode, timedOut = end.timedOut, stopped = end.stopped)
             }
-            banner.value = if (stillRunning) Banner.Done(command.name, ok = true, detail = getString(R.string.shell_log_running)) else done(command.name, result)
+            banner.value = if (stillRunning) Banner.Notice(command.name, getString(R.string.shell_log_running)) else done(command.name, result)
             delay(if (result.backend != null && !result.timedOut && result.exitCode == 0) 1_800 else 3_000)
             finish()
         }
@@ -216,8 +220,8 @@ class ShellShortcutActivity : ComponentActivity() {
         /** How long the banner of a background command waits to see whether it ends right away; with the 1.8 s "running" notice after it, the banner stays about 6 s. */
         const val DETACHED_BANNER_WAIT_MS = 4_200L
 
-        /** How long the "running" banner of a normal command stays before it goes away on its own. */
-        const val BANNER_RUNNING_MAX_MS = 6_000L
+        /** How long the spinner banner of a normal command stays before it turns into the "running" notice (1.8 s), so the banner stays about 6 s in all. */
+        const val BANNER_RUNNING_MAX_MS = 4_200L
 
         /** Runs the commands; it is not tied to the screen, which closes while a long command still runs. */
         val runScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
@@ -262,6 +266,7 @@ private fun BannerPill(banner: Banner, onTap: () -> Unit) {
                     CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp, color = text)
                     Text(banner.name, color = text)
                 }
+                is Banner.Notice -> Text("${banner.name} · ${banner.detail}", color = text)
                 is Banner.Done -> Text(
                     buildAnnotatedString {
                         withStyle(SpanStyle(color = if (banner.ok) okColor else failColor, fontWeight = FontWeight.Bold)) {

@@ -13,7 +13,12 @@ const val CODE_EDITOR_TAG = "strata-code-editor"
 fun CodeEditorView(controller: EditorController, modifier: Modifier = Modifier) {
     AndroidView(
         factory = { context ->
-            CodeEditor(context).apply {
+            object : CodeEditor(context) {
+                // The selection handles hang below the selected line. When that is the last line the editor could not
+                // scroll any further, so the handles fell outside the view (under the symbol bar) and could not be
+                // grabbed. A little extra scroll range after the last line leaves room for them.
+                override fun getScrollMaxY(): Int = super.getScrollMaxY() + height / 3
+            }.apply {
                 tag = CODE_EDITOR_TAG
                 layoutDirection = View.LAYOUT_DIRECTION_LTR
                 textDirection = View.TEXT_DIRECTION_LTR
