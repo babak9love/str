@@ -1,5 +1,8 @@
 package dev.cluvex.strata.feature.shell
 
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.material3.OutlinedTextField
@@ -209,6 +212,13 @@ internal fun OutputFilterButton(filter: OutputFilter) {
 @Composable
 internal fun OutputFilterField(filter: OutputFilter, text: String) {
     if (!filter.open) return
+    // The field takes focus and the keyboard as soon as it opens, so the search icon needs only one tap.
+    val focus = remember { FocusRequester() }
+    val keyboard = LocalSoftwareKeyboardController.current
+    LaunchedEffect(Unit) {
+        focus.requestFocus()
+        keyboard?.show()
+    }
     val q = filter.query.trim()
     val total = remember(text) { if (text.isEmpty()) 0 else text.lines().size }
     val shown = remember(text, q) { if (q.isEmpty()) total else text.lineSequence().count { it.contains(q, ignoreCase = true) } }
@@ -222,6 +232,6 @@ internal fun OutputFilterField(filter: OutputFilter, text: String) {
         },
         supportingText = { if (q.isNotEmpty()) Text(stringResource(R.string.shell_output_count, shown, total)) },
         keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.None, autoCorrectEnabled = false),
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier.fillMaxWidth().focusRequester(focus),
     )
 }

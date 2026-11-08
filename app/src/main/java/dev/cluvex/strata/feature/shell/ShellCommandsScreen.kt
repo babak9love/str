@@ -420,6 +420,8 @@ fun ShellCommandsScreen(onBack: () -> Unit, vm: ShellCommandsViewModel = viewMod
             )
         },
         floatingActionButton = {
+            // The same color a command card has at rest, so the menu items look like part of the list.
+            val cardColor = lerp(MaterialTheme.colorScheme.surfaceBright, MaterialTheme.colorScheme.primaryContainer, 0.3f)
             Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 AnimatedVisibility(
                     visible = fabOpen,
@@ -431,15 +433,15 @@ fun ShellCommandsScreen(onBack: () -> Unit, vm: ShellCommandsViewModel = viewMod
                             text = { Text(stringResource(R.string.shell_group_new)) },
                             icon = { Icon(Icons.Rounded.CreateNewFolder, contentDescription = null) },
                             onClick = { fabOpen = false; newGroupDialog = true },
-                            containerColor = MaterialTheme.colorScheme.secondaryContainer,
-                            contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+                            containerColor = cardColor,
+                            contentColor = MaterialTheme.colorScheme.onSurface,
                         )
                         ExtendedFloatingActionButton(
                             text = { Text(stringResource(R.string.shell_add)) },
                             icon = { Icon(Icons.Rounded.Terminal, contentDescription = null) },
                             onClick = { fabOpen = false; editing = EditTarget(null) },
-                            containerColor = MaterialTheme.colorScheme.secondaryContainer,
-                            contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+                            containerColor = cardColor,
+                            contentColor = MaterialTheme.colorScheme.onSurface,
                         )
                     }
                 }
