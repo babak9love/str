@@ -1,5 +1,12 @@
 package dev.cluvex.strata.feature.shell
 
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.material3.FloatingActionButton
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.material.icons.rounded.Search
@@ -8,6 +15,7 @@ import androidx.compose.foundation.lazy.LazyListItemInfo
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.material3.AssistChip
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.material.icons.rounded.ExpandMore
 import androidx.compose.material.icons.rounded.ExpandLess
@@ -152,6 +160,8 @@ fun ShellCommandsScreen(onBack: () -> Unit, vm: ShellCommandsViewModel = viewMod
     var pickFor by remember { mutableStateOf<SavedCommand?>(null) }
     var menuOpen by remember { mutableStateOf(false) }
     var searching by remember { mutableStateOf(false) }
+    // The + button opens a small menu: a new command or a new group.
+    var fabOpen by remember { mutableStateOf(false) }
     var query by remember { mutableStateOf("") }
     var newGroupDialog by remember { mutableStateOf(false) }
     var groupMenu by remember { mutableStateOf<String?>(null) }
@@ -223,7 +233,9 @@ fun ShellCommandsScreen(onBack: () -> Unit, vm: ShellCommandsViewModel = viewMod
         ShellLogScreen(onBack = { showLog = false })
         return
     }
-    BackHandler(onBack = { if (searching) { searching = false; query = "" } else onBack() })
+    BackHandler(onBack = {
+        if (fabOpen) fabOpen = false else if (searching) { searching = false; query = "" } else onBack()
+    })
     val density = LocalDensity.current
 
     fun startDrag(id: String) {
@@ -394,11 +406,6 @@ fun ShellCommandsScreen(onBack: () -> Unit, vm: ShellCommandsViewModel = viewMod
                         }
                         DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
                             DropdownMenuItem(
-                                text = { Text(stringResource(R.string.shell_group_new)) },
-                                leadingIcon = { Icon(Icons.Rounded.CreateNewFolder, contentDescription = null) },
-                                onClick = { menuOpen = false; newGroupDialog = true },
-                            )
-                            DropdownMenuItem(
                                 text = { Text(stringResource(R.string.shell_export)) },
                                 enabled = ui.commands.isNotEmpty(),
                                 onClick = { menuOpen = false; exportLauncher.launch("strata-shell-commands.json") },
@@ -413,14 +420,44 @@ fun ShellCommandsScreen(onBack: () -> Unit, vm: ShellCommandsViewModel = viewMod
             )
         },
         floatingActionButton = {
-            ExtendedFloatingActionButton(
-                text = { Text(stringResource(R.string.shell_add)) },
-                icon = { Icon(Icons.Rounded.Add, contentDescription = null) },
-                onClick = { editing = EditTarget(null) },
-            )
+            Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                AnimatedVisibility(
+                    visible = fabOpen,
+                    enter = fadeIn() + slideInVertically { it / 2 },
+                    exit = fadeOut() + slideOutVertically { it / 2 },
+                ) {
+                    Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                        ExtendedFloatingActionButton(
+                            text = { Text(stringResource(R.string.shell_group_new)) },
+                            icon = { Icon(Icons.Rounded.CreateNewFolder, contentDescription = null) },
+                            onClick = { fabOpen = false; newGroupDialog = true },
+                            containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                            contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+                        )
+                        ExtendedFloatingActionButton(
+                            text = { Text(stringResource(R.string.shell_add)) },
+                            icon = { Icon(Icons.Rounded.Terminal, contentDescription = null) },
+                            onClick = { fabOpen = false; editing = EditTarget(null) },
+                            containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                            contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+                        )
+                    }
+                }
+                FloatingActionButton(onClick = { fabOpen = !fabOpen }) {
+                    Icon(if (fabOpen) Icons.Rounded.Close else Icons.Rounded.Add, contentDescription = stringResource(R.string.shell_add))
+                }
+            }
         },
     ) { padding ->
         Box(Modifier.fillMaxSize().padding(padding)) {
+            // While the + menu is open, the list dims and a tap anywhere on it closes the menu.
+            if (fabOpen) {
+                Box(
+                    Modifier.fillMaxSize().zIndex(1f)
+                        .background(MaterialTheme.colorScheme.scrim.copy(alpha = 0.4f))
+                        .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) { fabOpen = false },
+                )
+            }
             when {
                 ui.loading -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { LoadingIndicator() }
                 ui.commands.isEmpty() && ui.groups.isEmpty() -> ExpressiveEmptyState(

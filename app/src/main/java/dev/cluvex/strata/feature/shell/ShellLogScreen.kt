@@ -319,17 +319,18 @@ private fun LogItem(entry: LogEntry, backgroundRunning: Boolean, expanded: Boole
             ) {
                 if (logFile == null) {
                     Text(stringResource(R.string.shell_log_output), style = MaterialTheme.typography.labelMedium)
-                    OutputFilterField(filter, entry.output)
                     Box(Modifier.fillMaxWidth().heightIn(max = 360.dp).verticalScroll(outputScroll)) {
                         SelectionContainer {
                             Text(if (entry.output.isEmpty()) stringResource(R.string.shell_no_output) else filter.apply(entry.output), style = mono)
                         }
                     }
+                    // Below the output, not above it: when the keyboard opens the list scrolls to keep this field in
+                    // view, which leaves the matching lines visible above it instead of hidden under the keyboard.
+                    OutputFilterField(filter, entry.output)
                 }
                 if (logFile != null) {
                     Text(stringResource(R.string.shell_log_file), style = MaterialTheme.typography.labelMedium)
                     Text(logFile, style = mono, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    OutputFilterField(filter, fileText.orEmpty())
                     Box(Modifier.fillMaxWidth().heightIn(max = 360.dp).verticalScroll(fileScroll)) {
                         SelectionContainer {
                             Text(
@@ -343,6 +344,7 @@ private fun LogItem(entry: LogEntry, backgroundRunning: Boolean, expanded: Boole
                             )
                         }
                     }
+                    OutputFilterField(filter, fileText.orEmpty())
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         // Stop only makes sense while the background process is alive.
                         if (running == true) {
@@ -414,8 +416,8 @@ private fun ActiveRunItem(run: ActiveRun, expanded: Boolean, dateText: String, o
                 Modifier.fillMaxWidth().padding(start = 72.dp, end = 16.dp, bottom = 12.dp),
                 verticalArrangement = Arrangement.spacedBy(6.dp),
             ) {
-                OutputFilterField(filter, run.output)
                 LiveOutputText(filter.apply(run.output).ifEmpty { "…" }, maxHeight = 360.dp)
+                OutputFilterField(filter, run.output)
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     TextButton(
                         onClick = {
