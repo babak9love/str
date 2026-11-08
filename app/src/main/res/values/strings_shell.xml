@@ -97,4 +97,5 @@
     <string name="shell_tile_2" translatable="false">Shell 2</string>
     <string name="shell_tile_3" translatable="false">Shell 3</string>
     <string name="shell_tile_4" translatable="false">Shell 4</string>
+    <string name="shell_tile_taken">“%1$s” uses this tile now; it will move to this command.</string>
 </resources>

@@ -76,6 +76,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.FilterChip
@@ -567,6 +568,8 @@ fun ShellCommandsScreen(onBack: () -> Unit, vm: ShellCommandsViewModel = viewMod
         EditCommandDialog(
             existing = target.command,
             groups = ui.groups,
+            // Tile slots that other commands already hold, with the name of the command that holds each.
+            takenTiles = ui.commands.filter { it.tile != 0 && it.id != target.command?.id }.associate { it.tile to it.name },
             onNewGroup = vm::addGroup,
             onSave = { name, command, shortcut, mode, timeoutSec, detached, confirm, showStatus, group, tile ->
                 vm.save(target.command?.id, name, command, shortcut, mode, timeoutSec, detached, confirm, showStatus, group, tile)
@@ -841,10 +844,12 @@ private fun CommandCard(
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun EditCommandDialog(
     existing: SavedCommand?,
     groups: List<String>,
+    takenTiles: Map<Int, String>,
     onNewGroup: (String) -> Unit,
     onSave: (name: String, command: String, shortcut: Boolean, mode: ShellMode, timeoutSec: Int, detached: Boolean, confirm: Boolean, showStatus: Boolean, group: String, tile: Int) -> Unit,
     onDelete: (() -> Unit)?,
@@ -962,10 +967,29 @@ private fun EditCommandDialog(
             Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 FilterChip(selected = tile == 0, onClick = { tile = 0 }, label = { Text(stringResource(R.string.shell_tile_none)) })
                 for (n in 1..dev.cluvex.strata.core.shell.ShellTiles.SLOTS) {
-                    FilterChip(selected = tile == n, onClick = { tile = n }, label = { Text(n.toString()) })
+                    val owner = takenTiles[n]
+                    FilterChip(
+                        selected = tile == n,
+                        onClick = { tile = n },
+                        // A slot another command already holds is highlighted and shows that command's name.
+                        label = { Text(if (owner == null) n.toString() else "$n · ${owner.take(10)}${if (owner.length > 10) "…" else ""}") },
+                        colors = if (owner == null) FilterChipDefaults.filterChipColors() else FilterChipDefaults.filterChipColors(
+                            containerColor = MaterialTheme.colorScheme.tertiaryContainer,
+                            labelColor = MaterialTheme.colorScheme.onTertiaryContainer,
+                            selectedContainerColor = MaterialTheme.colorScheme.tertiary,
+                            selectedLabelColor = MaterialTheme.colorScheme.onTertiary,
+                        ),
+                    )
                 }
             }
-            if (tile != 0) {
+            val takenBy = takenTiles[tile]
+            if (takenBy != null) {
+                Text(
+                    stringResource(R.string.shell_tile_taken, takenBy),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            } else if (tile != 0) {
                 Text(
                     stringResource(R.string.shell_tile_hint),
                     style = MaterialTheme.typography.bodySmall,
