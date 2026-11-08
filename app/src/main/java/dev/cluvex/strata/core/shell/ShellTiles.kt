@@ -10,6 +10,11 @@ import android.content.Context
 object ShellTiles {
     const val SLOTS = 4
 
+    /** Extra of the intent that opens the app from a tile's long press, with one of the two values below. */
+    const val EXTRA_OPEN_SHELL = "strata_open_shell"
+    const val OPEN_COMMANDS = 1
+    const val OPEN_LOG = 2
+
     /** The saved command behind [slot] (1..[SLOTS]), or null when the slot is empty. */
     fun command(context: Context, slot: Int): SavedCommand? =
         runCatching { ShellCommandStore(context.applicationContext).load().firstOrNull { it.tile == slot } }.getOrNull()

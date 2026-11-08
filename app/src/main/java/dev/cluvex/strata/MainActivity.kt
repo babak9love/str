@@ -24,7 +24,9 @@ import dev.cluvex.strata.core.data.SettingsRepository
 import dev.cluvex.strata.core.data.StrataSettings
 import dev.cluvex.strata.core.i18n.L10n
 import dev.cluvex.strata.core.open.IncomingShare
+import dev.cluvex.strata.core.shell.ShellTiles
 import dev.cluvex.strata.core.sound.UiSounds
+import dev.cluvex.strata.feature.shell.ShellOpenRequest
 import dev.cluvex.strata.core.util.Formatters
 import dev.cluvex.strata.feature.pdf.ReaderSource
 import dev.cluvex.strata.feature.media.PlaybackService
@@ -74,10 +76,21 @@ class MainActivity : FragmentActivity() {
     private fun requestsPlayer(intent: Intent?): Boolean =
         intent?.getBooleanExtra(PlaybackService.EXTRA_OPEN_PLAYER, false) == true
 
+    /** Bumped each time a shell tile is long-pressed, so the app opens the shell screen (on its log if one is running). */
+    private val openShellToken = mutableIntStateOf(0)
+
+    private fun requestShell(intent: Intent?) {
+        val what = intent?.getIntExtra(ShellTiles.EXTRA_OPEN_SHELL, 0) ?: 0
+        if (what == 0) return
+        ShellOpenRequest.showLog.value = what == ShellTiles.OPEN_LOG
+        openShellToken.intValue++
+    }
+
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
         if (requestsPlayer(intent)) openPlayerToken.intValue++
+        requestShell(intent)
     }
 
     override fun attachBaseContext(newBase: Context) {
@@ -120,6 +133,7 @@ class MainActivity : FragmentActivity() {
         val incomingShare = if (savedInstanceState == null) IncomingShare.uris(intent) else emptyList()
         val incomingShareMode = IncomingShare.mode(intent)
         if (savedInstanceState == null && requestsPlayer(intent)) openPlayerToken.intValue++
+        if (savedInstanceState == null) requestShell(intent)
         setContent {
             val settings by settingsFlow.collectAsStateWithLifecycle(initialValue = initial)
             val sounds = settings.appearance.sounds
@@ -152,6 +166,7 @@ class MainActivity : FragmentActivity() {
                                 incomingShare = incomingShare,
                                 incomingShareMode = incomingShareMode,
                                 openPlayerToken = openPlayerToken.intValue,
+                                openShellToken = openShellToken.intValue,
                                 onIncomingDone = { finish() },
                             )
                         }

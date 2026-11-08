@@ -1,6 +1,8 @@
 package dev.cluvex.strata.feature.shell
 
 import android.os.Bundle
+import android.view.Gravity
+import android.view.ViewGroup
 import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -8,7 +10,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
@@ -49,6 +51,10 @@ import dev.cluvex.strata.core.shell.ShellResult
 import dev.cluvex.strata.core.shell.ShellShortcuts
 import dev.cluvex.strata.core.shell.SavedCommand
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.async
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -76,6 +82,12 @@ class ShellShortcutActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         WindowCompat.setDecorFitsSystemWindows(window, false)
         window.addFlags(WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE or WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE)
+        // Only the banner strip at the top is covered, not the whole screen, and the window is a little see-through:
+        // Android blocks touches that pass through an almost opaque window of another app, which made the screen
+        // behind the banner unusable until the command ended.
+        window.setGravity(Gravity.TOP)
+        window.setLayout(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
+        window.attributes = window.attributes.also { it.alpha = BANNER_WINDOW_ALPHA }
         setContent {
             // The dialogs use the app's own theme (its light/dark choice and colors), not just the system's dark mode.
             val settingsFlow = remember { SettingsRepository(applicationContext).settings.catch { emit(StrataSettings()) } }
@@ -105,7 +117,7 @@ class ShellShortcutActivity : ComponentActivity() {
                 }
             }
             Box(
-                Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.statusBars).padding(start = 16.dp, end = 16.dp, top = 8.dp),
+                Modifier.fillMaxWidth().windowInsetsPadding(WindowInsets.statusBars).padding(start = 16.dp, end = 16.dp, top = 8.dp),
                 contentAlignment = Alignment.TopCenter,
             ) {
                 current?.let { StrataTheme(appearance = appearance) { BannerPill(it) } }
@@ -154,12 +166,22 @@ class ShellShortcutActivity : ComponentActivity() {
                 window.addFlags(WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE or WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE)
             }
             if (command.showStatus) banner.value = Banner.Running(command.name)
-            var result = ShellExecutor.runLogged(
-                applicationContext,
-                command,
-                // Only the two known values are accepted; anything else counts as a plain shortcut.
-                if (intent.getStringExtra(ShellShortcuts.EXTRA_SOURCE) == ShellLogSource.TILE) ShellLogSource.TILE else ShellLogSource.SHORTCUT,
-            )
+            // Only the two known values are accepted; anything else counts as a plain shortcut.
+            val source = if (intent.getStringExtra(ShellShortcuts.EXTRA_SOURCE) == ShellLogSource.TILE) ShellLogSource.TILE else ShellLogSource.SHORTCUT
+            // The run belongs to the process, not to this screen, so it goes on if the banner is dismissed early.
+            val run = runScope.async { ShellExecutor.runLogged(applicationContext, command, source) }
+            var result = if (command.showStatus && !command.detached) {
+                // A long command (a logcat, say) must not keep the banner up until it ends: after a few seconds the banner
+                // goes away and the command carries on; its result is then only in the history.
+                withTimeoutOrNull(BANNER_RUNNING_MAX_MS) { run.await() }
+            } else {
+                run.await()
+            }
+            if (result == null) {
+                banner.value = null
+                finish()
+                return@launch
+            }
             if (!command.showStatus) {
                 finish()
                 return@launch
@@ -179,8 +201,17 @@ class ShellShortcutActivity : ComponentActivity() {
     }
 
     private companion object {
-        /** How long the banner of a background command waits to see whether it ends right away. */
-        const val DETACHED_BANNER_WAIT_MS = 5_000L
+        /** How long the banner of a background command waits to see whether it ends right away; with the 1.8 s "running" notice after it, the banner stays about 6 s. */
+        const val DETACHED_BANNER_WAIT_MS = 4_200L
+
+        /** How long the "running" banner of a normal command stays before it goes away on its own. */
+        const val BANNER_RUNNING_MAX_MS = 6_000L
+
+        /** Runs the commands; it is not tied to the screen, which closes while a long command still runs. */
+        val runScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+
+        /** Android lets touches through a window of another app only if it is at most 80% opaque. */
+        const val BANNER_WINDOW_ALPHA = 0.75f
     }
 
     private fun done(name: String, result: ShellResult): Banner.Done = when {

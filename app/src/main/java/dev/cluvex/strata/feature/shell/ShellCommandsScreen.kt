@@ -157,6 +157,14 @@ fun ShellCommandsScreen(onBack: () -> Unit, vm: ShellCommandsViewModel = viewMod
     val ui by vm.state.collectAsState()
     var editing by remember { mutableStateOf<EditTarget?>(null) }
     var showLog by remember { mutableStateOf(false) }
+    // Opened from a tile's long press while a command runs: go straight to the log, where the live output is.
+    val logRequested by ShellOpenRequest.showLog.collectAsState()
+    LaunchedEffect(logRequested) {
+        if (logRequested) {
+            showLog = true
+            ShellOpenRequest.showLog.value = false
+        }
+    }
     var confirming by remember { mutableStateOf<SavedCommand?>(null) }
     // A command with {package} waits here until an app is picked for it.
     var pickFor by remember { mutableStateOf<SavedCommand?>(null) }

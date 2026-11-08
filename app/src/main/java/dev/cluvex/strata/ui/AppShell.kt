@@ -206,6 +206,7 @@ fun AppShell(
     incomingShare: List<Uri> = emptyList(),
     incomingShareMode: ShareMode? = null,
     openPlayerToken: Int = 0,
+    openShellToken: Int = 0,
     onIncomingDone: () -> Unit = {},
 ) {
     val access = rememberStorageAccessState()
@@ -271,6 +272,12 @@ fun AppShell(
         } else if (openDialog !is OpenDialog.Music) {
             openDialog = OpenDialog.Music(now.path)
         }
+    }
+
+    // A shell tile was long-pressed: show the shell commands (the screen opens its log by itself when asked to).
+    LaunchedEffect(openShellToken) {
+        if (openShellToken == 0) return@LaunchedEffect
+        if (stack.route != Route.ShellCommands) stack.push(Route.ShellCommands)
     }
 
     LaunchedEffect(incomingShare) {

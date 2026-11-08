@@ -129,6 +129,20 @@
             android:taskAffinity=""
             android:theme="@style/Theme.Strata.ShellBanner" />
 
+        <!-- Long press on a shell tile: opens the app on the live log, or on the shell commands. -->
+        <activity
+            android:name=".feature.shell.ShellTilePrefsActivity"
+            android:exported="true"
+            android:excludeFromRecents="true"
+            android:noHistory="true"
+            android:taskAffinity=""
+            android:theme="@android:style/Theme.Translucent.NoTitleBar">
+            <intent-filter>
+                <action android:name="android.service.quicksettings.action.QS_TILE_PREFERENCES" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </activity>
+
         <service
             android:name=".feature.shell.ShellTile1"
             android:exported="true"

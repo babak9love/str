@@ -14,9 +14,14 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import dev.cluvex.strata.core.shell.SavedCommand
 import dev.cluvex.strata.core.shell.ShellExecutor
 import dev.cluvex.strata.core.shell.ShellLogSource
+import dev.cluvex.strata.core.shell.ShellLogStore
+import dev.cluvex.strata.core.shell.ShellMode
+import dev.cluvex.strata.core.shell.ShellRunner
 import dev.cluvex.strata.core.shell.ShellParams
 import dev.cluvex.strata.core.shell.ShellRunTracker
 import dev.cluvex.strata.core.shell.ShellShortcuts
@@ -62,8 +67,40 @@ abstract class ShellTileService(private val slot: Int) : TileService() {
             refresh()
             return
         }
-        // A shell command must not run from a locked screen without the person unlocking first.
-        if (isLocked) unlockAndRun { start(command) } else start(command)
+        // A shell command must not be started or stopped from a locked screen without the person unlocking first.
+        if (isLocked) unlockAndRun { press(command) } else press(command)
+    }
+
+    /** A second tap while the command still runs stops it (what the Stop button does); otherwise it starts it. */
+    private fun press(command: SavedCommand) {
+        val running = ShellRunTracker.runs.value[command.id]
+        when {
+            running != null -> {
+                runScope.launch { ShellRunner.stopRun(command.id, running.mode) }
+            }
+            command.detached -> {
+                // A background command is not in the run list; ask the shell whether its process is still there.
+                val app = applicationContext
+                runScope.launch {
+                    val mode = lastBackendMode(app, command.id)
+                    val alive = mode != null && withTimeoutOrNull(2_000L) { ShellRunner.isDetachedRunning(command.id, mode) } == true
+                    withContext(Dispatchers.Main) {
+                        if (alive) runScope.launch { ShellRunner.stopDetached(command.id, mode!!) } else start(command)
+                    }
+                }
+            }
+            else -> start(command)
+        }
+    }
+
+    /** The backend the newest background run of [id] used, so the stop talks to the shell that started it. */
+    private suspend fun lastBackendMode(context: android.content.Context, id: String): ShellMode? = withContext(Dispatchers.IO) {
+        runCatching {
+            ShellLogStore(context).load()
+                .filter { it.commandId == id && it.logFile != null }
+                .maxByOrNull { it.time }
+                ?.let { ShellExecutor.modeOf(it.backend) }
+        }.getOrNull()
     }
 
     private fun start(command: SavedCommand) {

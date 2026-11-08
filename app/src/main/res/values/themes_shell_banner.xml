@@ -1,8 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- Invisible window that only hosts the top banner of a shell shortcut. It must not change the system bars. -->
+    <!-- Invisible window that only hosts the top banner of a shell shortcut. It must not change the system bars.
+         It is floating, so the window is only as big as the banner strip (the activity sets its size and position)
+         and never covers the whole screen. -->
     <style name="Theme.Strata.ShellBanner.Base" parent="@android:style/Theme.Translucent.NoTitleBar">
         <item name="android:windowIsTranslucent">true</item>
+        <item name="android:windowIsFloating">true</item>
         <item name="android:windowBackground">@android:color/transparent</item>
         <item name="android:windowAnimationStyle">@null</item>
         <item name="android:backgroundDimEnabled">false</item>
