@@ -25,6 +25,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import kotlinx.coroutines.delay
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.activity.compose.BackHandler
+import androidx.core.content.pm.ShortcutManagerCompat
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.animateContentSize
@@ -584,6 +585,7 @@ fun ShellCommandsScreen(onBack: () -> Unit, vm: ShellCommandsViewModel = viewMod
             groups = ui.groups,
             // Tile slots that other commands already hold, with the name of the command that holds each.
             takenTiles = ui.commands.filter { it.tile != 0 && it.id != target.command?.id }.associate { it.tile to it.name },
+            otherShortcuts = ui.commands.count { it.shortcut && it.id != target.command?.id },
             onNewGroup = vm::addGroup,
             onSave = { name, command, shortcut, mode, timeoutSec, detached, confirm, showStatus, group, tile ->
                 vm.save(target.command?.id, name, command, shortcut, mode, timeoutSec, detached, confirm, showStatus, group, tile)
@@ -864,6 +866,8 @@ private fun EditCommandDialog(
     existing: SavedCommand?,
     groups: List<String>,
     takenTiles: Map<Int, String>,
+    /** How many other commands already sit in the app icon menu. */
+    otherShortcuts: Int,
     onNewGroup: (String) -> Unit,
     onSave: (name: String, command: String, shortcut: Boolean, mode: ShellMode, timeoutSec: Int, detached: Boolean, confirm: Boolean, showStatus: Boolean, group: String, tile: Int) -> Unit,
     onDelete: (() -> Unit)?,
@@ -887,6 +891,8 @@ private fun EditCommandDialog(
     // turned on. Without it the status is shown as a plain Toast (the switch stays on either way).
     val overlayContext = LocalContext.current
     var askOverlay by remember { mutableStateOf(false) }
+    val maxShortcuts = remember { runCatching { ShortcutManagerCompat.getMaxShortcutCountPerActivity(overlayContext) }.getOrDefault(0) }
+    val shortcutsFull = maxShortcuts > 0 && otherShortcuts >= maxShortcuts
     val overlayLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { }
     if (askOverlay) {
         ExpressiveDialog(
@@ -996,7 +1002,15 @@ private fun EditCommandDialog(
             }
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text(stringResource(R.string.shell_shortcut), modifier = Modifier.weight(1f))
-                Switch(checked = shortcut, onCheckedChange = { shortcut = it })
+                // The launcher only shows a few app icon shortcuts; a command that already has one may always turn it off.
+                Switch(checked = shortcut, onCheckedChange = { shortcut = it }, enabled = shortcut || !shortcutsFull)
+            }
+            if (!shortcut && shortcutsFull) {
+                Text(
+                    stringResource(R.string.shell_shortcut_full, maxShortcuts),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
             }
             Text(stringResource(R.string.shell_tile_setting), style = MaterialTheme.typography.labelLarge)
             Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {

@@ -99,4 +99,5 @@
     <string name="shell_tile_taken">“%1$s” uses this tile now; it will move to this command.</string>
     <string name="shell_overlay_title">Display over other apps</string>
     <string name="shell_overlay_message">To show the status as a custom banner at the top, Strata needs permission to display over other apps.\n\nIf this permission already appears to be enabled, please toggle it off and back on. Android sometimes resets it (for example after an app update) while still showing it as enabled.\n\nWithout it the status is shown as a normal toast.</string>
+    <string name="shell_shortcut_full">Limit reached: only %1$d allowed. Turn one off first.</string>
 </resources>
