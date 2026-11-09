@@ -25,6 +25,8 @@ import androidx.compose.runtime.rememberCoroutineScope
 import kotlinx.coroutines.delay
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.animateFloat
@@ -881,6 +883,27 @@ private fun EditCommandDialog(
     var tile by remember { mutableStateOf(existing?.tile ?: 0) }
     var newGroupDialog by remember { mutableStateOf(false) }
     var showHelp by remember { mutableStateOf(false) }
+    // The status banner is drawn over other apps, which needs that permission; it is asked for when the switch is
+    // turned on. Without it the status is shown as a plain Toast (the switch stays on either way).
+    val overlayContext = LocalContext.current
+    var askOverlay by remember { mutableStateOf(false) }
+    val overlayLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { }
+    if (askOverlay) {
+        ExpressiveDialog(
+            onDismissRequest = { askOverlay = false },
+            title = stringResource(R.string.shell_overlay_title),
+            icon = Icons.Rounded.Terminal,
+            confirmButton = {
+                TextButton(onClick = {
+                    askOverlay = false
+                    runCatching { overlayLauncher.launch(ShellStatus.overlaySettingsIntent(overlayContext)) }
+                }) { Text(stringResource(R.string.common_ok)) }
+            },
+            dismissButton = { TextButton(onClick = { askOverlay = false }) { Text(stringResource(R.string.common_cancel)) } },
+        ) {
+            Text(stringResource(R.string.shell_overlay_message))
+        }
+    }
     if (newGroupDialog) {
         GroupNameDialog(
             title = stringResource(R.string.shell_group_new),
@@ -1013,8 +1036,21 @@ private fun EditCommandDialog(
                 Switch(checked = confirm, onCheckedChange = { confirm = it })
             }
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                Text(stringResource(R.string.shell_show_status), modifier = Modifier.weight(1f))
-                Switch(checked = showStatus, onCheckedChange = { showStatus = it })
+                Column(Modifier.weight(1f)) {
+                    Text(stringResource(R.string.shell_show_status))
+                    Text(
+                        stringResource(R.string.shell_show_status_hint),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                Switch(
+                    checked = showStatus,
+                    onCheckedChange = { on ->
+                        showStatus = on
+                        if (on && !ShellStatus.canDrawOverlay(overlayContext)) askOverlay = true
+                    },
+                )
             }
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 Column(Modifier.weight(1f)) {

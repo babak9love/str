@@ -39,7 +39,7 @@ data class SavedCommand(
     val detached: Boolean = false,
     /** Asks for confirmation before running. */
     val confirm: Boolean = false,
-    /** Shows the status banner at the top of the screen while a shortcut runs this command. */
+    /** Shows the status of a run (shortcut or tile): a banner over other apps when allowed, else a Toast; off = no message. */
     val showStatus: Boolean = true,
     /** Name of the group this command is listed under; empty = not in a group. */
     val group: String = "",

@@ -92,10 +92,13 @@
     <string name="shell_tile_none">None</string>
     <string name="shell_tile_label">Shell %1$d</string>
     <string name="shell_tile_not_set">Not set</string>
-    <string name="shell_tile_hint">Add the tile from the Quick Settings edit panel (pencil icon). It runs this command without opening the app. With the status message on, the panel closes and the banner shows; with it off, the panel stays open and the tile lights up while the command runs. Tap the tile again while the command runs to stop it. A long press opens the app on the live log, or on the shell commands when nothing is running.</string>
+    <string name="shell_tile_hint">Add the tile from the Quick Settings edit panel (pencil icon). It runs this command without opening the app. The status shows as a banner (or a plain toast without the overlay permission); the panel stays open and the tile lights up while the command runs. Tap the tile again while the command runs to stop it. A long press opens the app on the live log, or on the shell commands when nothing is running.</string>
     <string name="shell_tile_1" translatable="false">Shell 1</string>
     <string name="shell_tile_2" translatable="false">Shell 2</string>
     <string name="shell_tile_3" translatable="false">Shell 3</string>
     <string name="shell_tile_4" translatable="false">Shell 4</string>
     <string name="shell_tile_taken">“%1$s” uses this tile now; it will move to this command.</string>
+    <string name="shell_overlay_title">Display over other apps</string>
+    <string name="shell_overlay_message">To show the status as a custom banner at the top, Strata needs permission to display over other apps.\n\nIf this permission already appears to be enabled, please toggle it off and back on. Android sometimes resets it (for example after an app update) while still showing it as enabled.\n\nWithout it the status is shown as a normal toast.</string>
+    <string name="shell_show_status_hint">Shown as a banner when "Display over other apps" is allowed, otherwise as a plain toast.</string>
 </resources>
