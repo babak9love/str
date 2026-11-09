@@ -48,6 +48,7 @@ import dev.cluvex.strata.core.data.SettingsRepository
 import dev.cluvex.strata.core.model.AppearancePrefs
 import dev.cluvex.strata.core.shell.SavedCommand
 import dev.cluvex.strata.core.shell.ShellExecutor
+import dev.cluvex.strata.core.shell.ShellRunner
 import dev.cluvex.strata.core.shell.ShellResult
 import dev.cluvex.strata.ui.theme.StrataTheme
 import kotlinx.coroutines.CoroutineScope
@@ -79,12 +80,6 @@ internal sealed interface Banner {
  * The run belongs to the process, not to a screen, so it goes on when the banner is dismissed or the caller ends.
  */
 internal object ShellStatus {
-    /** How long the spinner banner of a normal command stays before it turns into the "running" notice. */
-    private const val RUNNING_MAX_MS = 4_200L
-
-    /** How long the banner of a background command waits to see whether it ends right away. */
-    private const val DETACHED_WAIT_MS = 4_200L
-
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
     fun canDrawOverlay(context: Context): Boolean =
@@ -131,11 +126,13 @@ internal object ShellStatus {
         }
         try {
             presenter.show(Banner.Running(command.name))
+            // How long the status waits for a result (chosen per command) before it turns into "running".
+            val waitMs = command.statusWaitSec.coerceIn(ShellRunner.MIN_STATUS_WAIT_SEC, ShellRunner.MAX_STATUS_WAIT_SEC) * 1_000L
             val run = scope.async { ShellExecutor.runLogged(app, command, source) }
             var result = if (!command.detached) {
                 // A long command (a logcat, say) must not keep the status up until it ends: after a few seconds it turns
                 // into "running" and goes away; the command carries on and its result is then only in the history.
-                withTimeoutOrNull(RUNNING_MAX_MS) { run.await() }
+                withTimeoutOrNull(waitMs) { run.await() }
             } else {
                 run.await()
             }
@@ -148,7 +145,7 @@ internal object ShellStatus {
             if (command.detached && result.backend != null && !result.timedOut && result.exitCode == 0) {
                 // For a background command "started" is all runLogged knows. A command that fails at once is the usual
                 // case, so give it a few seconds: if it ends, the status shows how it really ended; if not, it runs.
-                val end = ShellExecutor.awaitDetachedEnd(app, command, DETACHED_WAIT_MS)
+                val end = ShellExecutor.awaitDetachedEnd(app, command, waitMs)
                 if (end == null) stillRunning = true
                 else result = result.copy(exitCode = end.exitCode, timedOut = end.timedOut, stopped = end.stopped)
             }

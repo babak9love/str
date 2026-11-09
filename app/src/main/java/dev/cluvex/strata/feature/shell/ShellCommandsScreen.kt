@@ -25,6 +25,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import kotlinx.coroutines.delay
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.activity.compose.BackHandler
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.core.content.pm.ShortcutManagerCompat
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -587,8 +588,8 @@ fun ShellCommandsScreen(onBack: () -> Unit, vm: ShellCommandsViewModel = viewMod
             takenTiles = ui.commands.filter { it.tile != 0 && it.id != target.command?.id }.associate { it.tile to it.name },
             otherShortcuts = ui.commands.count { it.shortcut && it.id != target.command?.id },
             onNewGroup = vm::addGroup,
-            onSave = { name, command, shortcut, mode, timeoutSec, detached, confirm, showStatus, group, tile ->
-                vm.save(target.command?.id, name, command, shortcut, mode, timeoutSec, detached, confirm, showStatus, group, tile)
+            onSave = { name, command, shortcut, mode, timeoutSec, detached, confirm, showStatus, group, tile, statusWaitSec ->
+                vm.save(target.command?.id, name, command, shortcut, mode, timeoutSec, detached, confirm, showStatus, group, tile, statusWaitSec)
                 editing = null
             },
             onDelete = target.command?.let { c -> { vm.delete(c.id); editing = null } },
@@ -869,7 +870,7 @@ private fun EditCommandDialog(
     /** How many other commands already sit in the app icon menu. */
     otherShortcuts: Int,
     onNewGroup: (String) -> Unit,
-    onSave: (name: String, command: String, shortcut: Boolean, mode: ShellMode, timeoutSec: Int, detached: Boolean, confirm: Boolean, showStatus: Boolean, group: String, tile: Int) -> Unit,
+    onSave: (name: String, command: String, shortcut: Boolean, mode: ShellMode, timeoutSec: Int, detached: Boolean, confirm: Boolean, showStatus: Boolean, group: String, tile: Int, statusWaitSec: Int) -> Unit,
     onDelete: (() -> Unit)?,
     onDuplicate: (() -> Unit)?,
     onPin: (() -> Unit)?,
@@ -883,6 +884,7 @@ private fun EditCommandDialog(
     var detached by remember { mutableStateOf(existing?.detached ?: false) }
     var confirm by remember { mutableStateOf(existing?.confirm ?: false) }
     var showStatus by remember { mutableStateOf(existing?.showStatus ?: true) }
+    var waitText by remember { mutableStateOf((existing?.statusWaitSec ?: ShellRunner.DEFAULT_STATUS_WAIT_SEC).toString()) }
     var group by remember { mutableStateOf(existing?.group.orEmpty()) }
     var tile by remember { mutableStateOf(existing?.tile ?: 0) }
     var newGroupDialog by remember { mutableStateOf(false) }
@@ -924,7 +926,11 @@ private fun EditCommandDialog(
         title = stringResource(if (existing == null) R.string.shell_add else R.string.shell_edit),
         icon = Icons.Rounded.Terminal,
         confirmButton = {
-            TextButton(onClick = { onSave(name, command, shortcut, mode, timeoutSec, detached, confirm, showStatus, group, tile) }, enabled = command.isNotBlank()) {
+            TextButton(onClick = { onSave(
+                name, command, shortcut, mode, timeoutSec, detached, confirm, showStatus, group, tile,
+                waitText.toIntOrNull()?.coerceIn(ShellRunner.MIN_STATUS_WAIT_SEC, ShellRunner.MAX_STATUS_WAIT_SEC) ?: ShellRunner.DEFAULT_STATUS_WAIT_SEC,
+            )
+            }, enabled = command.isNotBlank()) {
                 Text(stringResource(R.string.common_save))
             }
         },
@@ -1060,6 +1066,16 @@ private fun EditCommandDialog(
                         showStatus = on
                         if (on && !ShellStatus.canDrawOverlay(overlayContext)) askOverlay = true
                     },
+                )
+            }
+            if (showStatus) {
+                OutlinedTextField(
+                    value = waitText,
+                    onValueChange = { v -> waitText = v.filter { it.isDigit() }.take(3) },
+                    label = { Text(stringResource(R.string.shell_status_wait)) },
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    modifier = Modifier.fillMaxWidth(),
                 )
             }
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {

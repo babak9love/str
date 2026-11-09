@@ -107,6 +107,7 @@ class ShellCommandsViewModel(app: Application) : AndroidViewModel(app) {
         showStatus: Boolean = true,
         group: String = "",
         tile: Int = 0,
+        statusWaitSec: Int = ShellRunner.DEFAULT_STATUS_WAIT_SEC,
     ) {
         val cmd = command.trim()
         if (cmd.isEmpty()) return
@@ -114,8 +115,8 @@ class ShellCommandsViewModel(app: Application) : AndroidViewModel(app) {
         _state.value.commands.firstOrNull { it.id == id }?.let { old -> if (old.detached && !detached) cleanupFiles(old) }
         val targetId = id ?: UUID.randomUUID().toString()
         change { list ->
-            val edited = if (id == null) list + SavedCommand(targetId, label, cmd, shortcut, mode, timeoutSec, detached, confirm, showStatus, group.trim(), tile)
-            else list.map { if (it.id == id) it.copy(name = label, command = cmd, shortcut = shortcut, mode = mode, timeoutSec = timeoutSec, detached = detached, confirm = confirm, showStatus = showStatus, group = group.trim(), tile = tile) else it }
+            val edited = if (id == null) list + SavedCommand(targetId, label, cmd, shortcut, mode, timeoutSec, detached, confirm, showStatus, group.trim(), tile, statusWaitSec)
+            else list.map { if (it.id == id) it.copy(name = label, command = cmd, shortcut = shortcut, mode = mode, timeoutSec = timeoutSec, detached = detached, confirm = confirm, showStatus = showStatus, group = group.trim(), tile = tile, statusWaitSec = statusWaitSec) else it }
             // A tile slot runs one command: choosing it here takes it from whichever command had it.
             ShellTiles.resolve(edited, setOf(targetId))
         }

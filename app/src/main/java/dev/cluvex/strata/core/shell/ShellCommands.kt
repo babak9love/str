@@ -45,6 +45,8 @@ data class SavedCommand(
     val group: String = "",
     /** Quick Settings tile (1..[ShellTiles.SLOTS]) that runs this command; 0 = none. Part of exports and backups. */
     val tile: Int = 0,
+    /** With [showStatus] on: how many seconds the status waits for the result before it just says "running". */
+    val statusWaitSec: Int = ShellRunner.DEFAULT_STATUS_WAIT_SEC,
 )
 
 enum class ShellBackend { SHIZUKU, ROOT }
@@ -138,6 +140,11 @@ class ShellCommandStore(context: Context) {
 
 object ShellRunner {
     const val DEFAULT_TIMEOUT_SEC = 60
+
+    /** Default seconds the status message waits for a result, and the range a person may type. */
+    const val DEFAULT_STATUS_WAIT_SEC = 10
+    const val MIN_STATUS_WAIT_SEC = 1
+    const val MAX_STATUS_WAIT_SEC = 300
     /** Timeout value meaning "no limit"; only background commands can use it. */
     const val NO_TIMEOUT = 0
     const val MIN_TIMEOUT_SEC = 5
