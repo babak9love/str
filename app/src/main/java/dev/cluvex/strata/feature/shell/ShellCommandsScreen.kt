@@ -1002,12 +1002,15 @@ private fun EditCommandDialog(
             Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 for (n in 1..dev.cluvex.strata.core.shell.ShellTiles.SLOTS) {
                     val owner = takenTiles[n]
+                    // Once this command picks the slot, the chip shows this command's name (what the list will show after
+                    // saving) instead of the name of the command that held it.
+                    val shown = if (tile == n) name.trim().ifEmpty { command.lineSequence().firstOrNull().orEmpty().trim().take(40) }.ifEmpty { null } else owner
                     FilterChip(
                         selected = tile == n,
                         // Tapping the chosen tile again clears the choice (0 = no tile).
                         onClick = { tile = if (tile == n) 0 else n },
                         // A slot another command already holds is highlighted and shows that command's name.
-                        label = { Text(if (owner == null) n.toString() else "$n · ${owner.take(10)}${if (owner.length > 10) "…" else ""}") },
+                        label = { Text(if (shown == null) n.toString() else "$n · ${shown.take(10)}${if (shown.length > 10) "…" else ""}") },
                         colors = if (owner == null) FilterChipDefaults.filterChipColors() else FilterChipDefaults.filterChipColors(
                             containerColor = MaterialTheme.colorScheme.tertiaryContainer,
                             labelColor = MaterialTheme.colorScheme.onTertiaryContainer,
@@ -1031,26 +1034,12 @@ private fun EditCommandDialog(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
-            if (tile != 0) {
-                Text(
-                    stringResource(R.string.shell_tile_deselect),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text(stringResource(R.string.shell_confirm_switch), modifier = Modifier.weight(1f))
                 Switch(checked = confirm, onCheckedChange = { confirm = it })
             }
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                Column(Modifier.weight(1f)) {
-                    Text(stringResource(R.string.shell_show_status))
-                    Text(
-                        stringResource(R.string.shell_show_status_hint),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
+                Text(stringResource(R.string.shell_show_status), modifier = Modifier.weight(1f))
                 Switch(
                     checked = showStatus,
                     onCheckedChange = { on ->
