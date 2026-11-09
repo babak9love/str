@@ -101,4 +101,8 @@
     <string name="shell_overlay_message">To show the status as a custom banner at the top, Strata needs permission to display over other apps.\n\nIf this permission already appears to be enabled, please toggle it off and back on. Android sometimes resets it (for example after an app update) while still showing it as enabled.\n\nWithout it the status is shown as a normal toast.</string>
     <string name="shell_shortcut_full">Limit reached: only %1$d allowed. Turn one off first.</string>
     <string name="shell_status_wait">Status wait (seconds)</string>
+    <string name="shell_section_run">Run</string>
+    <string name="shell_section_result">Result display</string>
+    <string name="shell_section_quick">Quick access</string>
+    <string name="shell_status_wait_hint">The status only waits this long for the result. If the command is still running when it closes, its final result appears only in the history.</string>
 </resources>

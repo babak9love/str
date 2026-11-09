@@ -97,4 +97,8 @@
     <string name="shell_overlay_message">要在顶部以自定义横幅显示状态，Strata 需要“显示在其他应用上层”的权限。\n\n如果该权限看起来已开启，请先关闭再重新开启。Android 有时会重置它（例如应用更新后），但仍显示为已开启。\n\n没有该权限时，状态将以普通 Toast 显示。</string>
     <string name="shell_shortcut_full">已达上限：最多 %1$d 个。请先关闭其他项。</string>
     <string name="shell_status_wait">状态等待时间（秒）</string>
+    <string name="shell_section_run">运行</string>
+    <string name="shell_section_result">结果显示</string>
+    <string name="shell_section_quick">快速访问</string>
+    <string name="shell_status_wait_hint">状态提示只会等待这么长时间。若关闭后命令仍在运行，最终结果只会记录在历史中。</string>
 </resources>

@@ -97,4 +97,8 @@
     <string name="shell_overlay_message">Чтобы показывать статус собственным баннером сверху, Strata нужно разрешение «Поверх других приложений».\n\nЕсли разрешение уже кажется включённым, выключите и снова включите его: Android иногда сбрасывает его (например, после обновления), хотя оно выглядит включённым.\n\nБез него статус показывается обычным тостом.</string>
     <string name="shell_shortcut_full">Лимит: не более %1$d. Сначала отключите другой.</string>
     <string name="shell_status_wait">Ожидание статуса (сек.)</string>
+    <string name="shell_section_run">Запуск</string>
+    <string name="shell_section_result">Показ результата</string>
+    <string name="shell_section_quick">Быстрый доступ</string>
+    <string name="shell_status_wait_hint">Статус ждёт результат только это время. Если команда ещё выполняется после его закрытия, итог будет только в истории.</string>
 </resources>
