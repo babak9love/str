@@ -127,4 +127,9 @@
     <string name="shell_insert_pick_title">选择要插入的应用</string>
     <string name="shell_undo">撤销</string>
     <string name="shell_redo">重做</string>
+    <string name="shell_find">查找</string>
+    <string name="shell_find_prev">上一个匹配</string>
+    <string name="shell_find_next">下一个匹配</string>
+    <string name="shell_more">更多</string>
+    <string name="shell_command_placeholder">点按以输入命令…</string>
 </resources>

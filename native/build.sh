@@ -12,14 +12,22 @@ if [[ -z "${ANDROID_NDK_HOME:-}" ]]; then
 fi
 echo "Using NDK: ${ANDROID_NDK_HOME:-<none>}"
 
-for t in aarch64_linux_android armv7_linux_androideabi x86_64_linux_android; do
-  export "CXXFLAGS_${t}=-D_POSIX_C_SOURCE=200809L"
+# ABIS picks what to build (space separated); CI sets only arm64-v8a for ordinary builds to save time.
+ABIS="${ABIS:-arm64-v8a armeabi-v7a x86_64}"
+ARGS=()
+for abi in $ABIS; do
+  case "$abi" in
+    arm64-v8a)   export CXXFLAGS_aarch64_linux_android="-D_POSIX_C_SOURCE=200809L" ;;
+    armeabi-v7a) export CXXFLAGS_armv7_linux_androideabi="-D_POSIX_C_SOURCE=200809L" ;;
+    x86_64)      export CXXFLAGS_x86_64_linux_android="-D_POSIX_C_SOURCE=200809L" ;;
+    *) echo "Unknown ABI: $abi" >&2; exit 1 ;;
+  esac
+  ARGS+=(-t "$abi")
 done
+echo "Building for: $ABIS"
 
 cargo ndk \
-  -t arm64-v8a \
-  -t armeabi-v7a \
-  -t x86_64 \
+  "${ARGS[@]}" \
   -o ../app/src/main/jniLibs \
   build --release
 

@@ -12,6 +12,8 @@ val keystoreProperties = Properties().apply {
     if (keystorePropertiesFile.exists()) FileInputStream(keystorePropertiesFile).use { load(it) }
 }
 val hasReleaseKeystore = keystorePropertiesFile.exists()
+// -Pstrata.arm64Only=true packs only the arm64-v8a native libraries: the quick build CI uses for ordinary pushes.
+val arm64Only = providers.gradleProperty("strata.arm64Only").map { it.toBoolean() }.getOrElse(false)
 
 android {
     namespace = "dev.cluvex.strata"
@@ -29,6 +31,7 @@ android {
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables { useSupportLibrary = true }
+        if (arm64Only) ndk { abiFilters += "arm64-v8a" }
     }
 
     signingConfigs {
@@ -72,7 +75,7 @@ android {
 
     splits {
         abi {
-            isEnable = providers.gradleProperty("strata.splitApks").map { it.toBoolean() }.getOrElse(false)
+            isEnable = !arm64Only && providers.gradleProperty("strata.splitApks").map { it.toBoolean() }.getOrElse(false)
             reset()
             include("arm64-v8a", "armeabi-v7a", "x86_64")
             isUniversalApk = true

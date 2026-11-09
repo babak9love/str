@@ -924,9 +924,7 @@ private fun EditCommandDialog(
     var pickInsert by remember { mutableStateOf(false) }
     var pickTest by remember { mutableStateOf(false) }
     var snippetsOpen by remember { mutableStateOf(false) }
-    var cmdFocused by remember { mutableStateOf(false) }
     var askDiscard by remember { mutableStateOf(false) }
-    val imeVisible = WindowInsets.ime.getBottom(LocalDensity.current) > 0
     // When the name is left empty, the command's first line is used (the same rule the save uses).
     val autoName = remember(command) { command.lineSequence().firstOrNull { it.isNotBlank() }?.trim().orEmpty().take(40) }
     /** Writes [text] at the cursor (replacing any selection) and leaves the cursor after it. */
@@ -1027,8 +1025,18 @@ private fun EditCommandDialog(
     if (expanded) {
         ExpandedCommandEditor(
             editor = editor,
-            onInsert = { insertText(it) },
             highlight = highlight,
+            testStatus = { TestStatus(testResult, testRunning) },
+            testOutput = testOutput,
+            testRunning = testRunning,
+            canRun = command.isNotBlank(),
+            onRun = { if (ShellParams.needsPackage(command)) pickTest = true else runTest(command.trim()) },
+            onStop = { testScope.launch { ShellRunner.stopRun(testId, mode) } },
+            onInsert = { insertText(it) },
+            onSnippet = { label, cmd -> applySnippet(label, cmd) },
+            onPickApp = { pickInsert = true },
+            onPaste = { clipboard.readText { t -> if (t.isNotEmpty()) insertText(t) } },
+            onClear = { editor.set(TextFieldValue("")) },
             onClose = { expanded = false },
         )
     }
@@ -1063,7 +1071,6 @@ private fun EditCommandDialog(
                         },
                     )
                 },
-                bottomBar = { if (cmdFocused && imeVisible) SymbolBar(editor, onInsert = { insertText(it) }) },
             ) { padding ->
                 Column(
                     Modifier.padding(padding).fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 8.dp),
@@ -1077,8 +1084,25 @@ private fun EditCommandDialog(
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth(),
                     )
-                    // Help for the command: the icon sits inside the command box (top right); more entries can be
-                    // added as the command grows features.
+                    // Test run sits above the command box, with how the last run ended beside it.
+                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
+                        OutlinedButton(
+                            onClick = { if (ShellParams.needsPackage(command)) pickTest = true else runTest(command.trim()) },
+                            enabled = command.isNotBlank() && !testRunning,
+                        ) {
+                            Icon(Icons.Rounded.PlayArrow, contentDescription = null, modifier = Modifier.size(18.dp))
+                            Spacer(Modifier.width(6.dp))
+                            Text(stringResource(R.string.shell_test_run))
+                        }
+                        if (testRunning) {
+                            OutlinedButton(onClick = { testScope.launch { ShellRunner.stopRun(testId, mode) } }) {
+                                Icon(Icons.Rounded.Stop, contentDescription = null, modifier = Modifier.size(18.dp))
+                                Spacer(Modifier.width(6.dp))
+                                Text(stringResource(R.string.common_stop))
+                            }
+                        }
+                        TestStatus(testResult, testRunning)
+                    }
                     if (showHelp) {
                         Column(
                             Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(12.dp)).padding(12.dp),
@@ -1087,34 +1111,9 @@ private fun EditCommandDialog(
                             HelpEntry("{package}", stringResource(R.string.shell_param_hint))
                         }
                     }
-                    Box(Modifier.fillMaxWidth()) {
-                        OutlinedTextField(
-                            value = commandField,
-                            onValueChange = { editor.onChange(it) },
-                            label = { Text(stringResource(R.string.shell_command)) },
-                            minLines = 3,
-                            maxLines = 6,
-                            textStyle = MaterialTheme.typography.bodyMedium.copy(
-                                fontFamily = FontFamily.Monospace,
-                                textDirection = TextDirection.Ltr,
-                            ),
-                            keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.None, autoCorrectEnabled = false),
-                            // Room at the end of the first line for the help icon, so text never runs under it.
-                            trailingIcon = { Spacer(Modifier.width(32.dp)) },
-                            visualTransformation = highlight,
-                            modifier = Modifier.fillMaxWidth().onFocusChanged { cmdFocused = it.isFocused },
-                        )
-                        IconButton(
-                            onClick = { showHelp = !showHelp },
-                            modifier = Modifier.align(Alignment.TopEnd).padding(top = 12.dp, end = 8.dp).size(32.dp),
-                        ) {
-                            Icon(Icons.Rounded.Info, contentDescription = stringResource(R.string.shell_help), modifier = Modifier.size(20.dp))
-                        }
-                    }
-
-                    // Helpers for writing the command: ready-made commands, an app's package name, clipboard, full screen.
-                    Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                        UndoRedoButtons(editor)
+                    // The command: a preview that opens the full-screen editor when tapped. Its helpers are inside the frame.
+                    Text(stringResource(R.string.shell_command), style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
+                    CommandBox(text = command, onOpen = { expanded = true }, onHelp = { showHelp = !showHelp }) {
                         Box {
                             AssistChip(
                                 onClick = { snippetsOpen = true },
@@ -1148,71 +1147,15 @@ private fun EditCommandDialog(
                             label = { Text(stringResource(R.string.common_clear)) },
                             leadingIcon = { Icon(Icons.Rounded.ClearAll, contentDescription = null, modifier = Modifier.size(18.dp)) },
                         )
-                        AssistChip(
-                            onClick = { expanded = true },
-                            label = { Text(stringResource(R.string.shell_tool_expand)) },
-                            leadingIcon = { Icon(Icons.Rounded.Fullscreen, contentDescription = null, modifier = Modifier.size(18.dp)) },
-                        )
                     }
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                        OutlinedButton(
-                            onClick = { if (ShellParams.needsPackage(command)) pickTest = true else runTest(command.trim()) },
-                            enabled = command.isNotBlank() && !testRunning,
-                        ) {
-                            Icon(Icons.Rounded.PlayArrow, contentDescription = null, modifier = Modifier.size(18.dp))
-                            Spacer(Modifier.width(6.dp))
-                            Text(stringResource(R.string.shell_test_run))
-                        }
-                        if (testRunning) {
-                            OutlinedButton(onClick = { testScope.launch { ShellRunner.stopRun(testId, mode) } }) {
-                                Icon(Icons.Rounded.Stop, contentDescription = null, modifier = Modifier.size(18.dp))
-                                Spacer(Modifier.width(6.dp))
-                                Text(stringResource(R.string.common_stop))
-                            }
-                        }
-                    }
-                    val shownOutput = testOutput
-                    if (shownOutput == null) {
+                    if (testOutput == null) {
                         Text(
                             stringResource(R.string.shell_test_hint),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     } else {
-                        val res = testResult
-                        Surface(shape = RoundedCornerShape(12.dp), color = MaterialTheme.colorScheme.surfaceContainerLow, modifier = Modifier.fillMaxWidth()) {
-                            Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                    if (res == null) {
-                                        CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp)
-                                        Text(stringResource(R.string.shell_test_running), style = MaterialTheme.typography.labelLarge)
-                                    } else {
-                                        val ok = res.backend != null && !res.timedOut && !res.stopped && res.exitCode == 0
-                                        Text(
-                                            when {
-                                                res.backend == null -> stringResource(R.string.shell_banner_no_backend)
-                                                res.timedOut -> stringResource(R.string.shell_log_timed_out)
-                                                res.stopped -> stringResource(R.string.shell_log_stopped)
-                                                res.exitCode != 0 -> stringResource(R.string.shell_log_failed) + " · " + stringResource(R.string.shell_exit_code, res.exitCode)
-                                                else -> stringResource(R.string.shell_log_success)
-                                            },
-                                            style = MaterialTheme.typography.labelLarge,
-                                            color = if (ok) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error,
-                                        )
-                                    }
-                                }
-                                val outScroll = rememberScrollState()
-                                // Follow the end of the output while the command is still printing.
-                                LaunchedEffect(shownOutput.length) { if (res == null) outScroll.scrollTo(outScroll.maxValue) }
-                                SelectionContainer {
-                                    Text(
-                                        shownOutput.ifEmpty { if (res != null) stringResource(R.string.shell_no_output) else "" },
-                                        style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace, textDirection = TextDirection.Ltr),
-                                        modifier = Modifier.fillMaxWidth().heightIn(max = 220.dp).verticalScroll(outScroll),
-                                    )
-                                }
-                            }
-                        }
+                        TestOutputPanel(testOutput, testRunning)
                     }
 
                     // ── Run ────────────────────────────────────────────────────────────────────────────────────

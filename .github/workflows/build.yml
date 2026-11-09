@@ -18,6 +18,9 @@ jobs:
     timeout-minutes: 150
     permissions:
       contents: write
+    # Release tags (v*) build every ABI plus the debug APK. Any other run is the quick build: arm64-v8a only.
+    env:
+      ABIS: ${{ startsWith(github.ref, 'refs/tags/') && 'arm64-v8a armeabi-v7a x86_64' || 'arm64-v8a' }}
     steps:
       - name: Set the default git branch
         run: git config --global init.defaultBranch main
@@ -38,7 +41,7 @@ jobs:
               exit 1
             fi
           done
-          for abi in arm64-v8a armeabi-v7a x86_64; do
+          for abi in $ABIS; do
             for lib in libavcodec libavutil libswscale libswresample libmedia3ext; do
               unzip -l "$dec" | grep -q "jni/$abi/$lib.so" || { echo "::error::$dec has no $abi $lib.so."; exit 1; }
             done
@@ -74,11 +77,12 @@ jobs:
 
       - uses: dtolnay/rust-toolchain@stable
         with:
-          targets: aarch64-linux-android,armv7-linux-androideabi,x86_64-linux-android
+          targets: ${{ startsWith(github.ref, 'refs/tags/') && 'aarch64-linux-android,armv7-linux-androideabi,x86_64-linux-android' || 'aarch64-linux-android' }}
 
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: native
+          key: ${{ startsWith(github.ref, 'refs/tags/') && 'full' || 'fast' }}
 
       - name: Install cargo-ndk
         run: cargo install cargo-ndk --locked
@@ -89,12 +93,13 @@ jobs:
       - name: Build the native core
         run: native/build.sh
 
+      # The debug APK is built for release tags (all ABIs) and for pull requests (arm64-v8a only, as a compile check).
       - name: Build the debug APK
-        if: ${{ !startsWith(github.ref, 'refs/tags/') }}
-        run: ./gradlew --stacktrace :app:assembleDebug
+        if: ${{ startsWith(github.ref, 'refs/tags/') || github.event_name == 'pull_request' }}
+        run: ./gradlew --stacktrace :app:assembleDebug ${{ !startsWith(github.ref, 'refs/tags/') && '-Pstrata.arm64Only=true' || '' }}
 
       - name: Upload the debug APK
-        if: ${{ !startsWith(github.ref, 'refs/tags/') }}
+        if: ${{ startsWith(github.ref, 'refs/tags/') || github.event_name == 'pull_request' }}
         uses: actions/upload-artifact@v7
         with:
           name: strata-debug
@@ -125,11 +130,18 @@ jobs:
             echo "::error::Tag $GITHUB_REF_NAME does not match strata.versionName=${version} in gradle.properties."
             exit 1
           fi
-          ./gradlew --stacktrace :app:assembleRelease -Pstrata.splitApks=true
           mkdir -p dist
-          for abi in arm64-v8a armeabi-v7a x86_64 universal; do
-            cp "app/build/outputs/apk/release/app-${abi}-release.apk" "dist/Strata-v${version}-${abi}.apk"
-          done
+          if [[ "$GITHUB_REF" == refs/tags/* ]]; then
+            ./gradlew --stacktrace :app:assembleRelease -Pstrata.splitApks=true
+            for abi in arm64-v8a armeabi-v7a x86_64 universal; do
+              cp "app/build/outputs/apk/release/app-${abi}-release.apk" "dist/Strata-v${version}-${abi}.apk"
+            done
+            cp app/build/outputs/apk/debug/*.apk "dist/Strata-v${version}-debug.apk"
+          else
+            # Quick build: one arm64-v8a APK, no splits.
+            ./gradlew --stacktrace :app:assembleRelease -Pstrata.arm64Only=true
+            cp app/build/outputs/apk/release/app-release.apk "dist/Strata-v${version}-arm64-v8a.apk"
+          fi
           (cd dist && sha256sum *.apk > SHA256SUMS.txt)
 
       - name: Upload arm64-v8a APK
@@ -142,7 +154,7 @@ jobs:
           if-no-files-found: error
 
       - name: Upload armeabi-v7a APK
-        if: github.event_name != 'pull_request'
+        if: ${{ startsWith(github.ref, 'refs/tags/') }}
         uses: actions/upload-artifact@v7
         with:
           name: strata-armeabi-v7a
@@ -151,7 +163,7 @@ jobs:
           if-no-files-found: error
 
       - name: Upload x86_64 APK
-        if: github.event_name != 'pull_request'
+        if: ${{ startsWith(github.ref, 'refs/tags/') }}
         uses: actions/upload-artifact@v7
         with:
           name: strata-x86_64
@@ -160,7 +172,7 @@ jobs:
           if-no-files-found: error
 
       - name: Upload universal APK
-        if: github.event_name != 'pull_request'
+        if: ${{ startsWith(github.ref, 'refs/tags/') }}
         uses: actions/upload-artifact@v7
         with:
           name: strata-universal

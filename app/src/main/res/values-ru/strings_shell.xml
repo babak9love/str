@@ -127,4 +127,9 @@
     <string name="shell_insert_pick_title">Выберите приложение для вставки</string>
     <string name="shell_undo">Отменить</string>
     <string name="shell_redo">Повторить</string>
+    <string name="shell_find">Найти</string>
+    <string name="shell_find_prev">Предыдущее совпадение</string>
+    <string name="shell_find_next">Следующее совпадение</string>
+    <string name="shell_more">Ещё</string>
+    <string name="shell_command_placeholder">Нажмите, чтобы ввести команду…</string>
 </resources>

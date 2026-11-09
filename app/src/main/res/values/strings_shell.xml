@@ -131,4 +131,9 @@
     <string name="shell_insert_pick_title">Choose an app to insert</string>
     <string name="shell_undo">Undo</string>
     <string name="shell_redo">Redo</string>
+    <string name="shell_find">Find</string>
+    <string name="shell_find_prev">Previous match</string>
+    <string name="shell_find_next">Next match</string>
+    <string name="shell_more">More</string>
+    <string name="shell_command_placeholder">Tap to write a command…</string>
 </resources>

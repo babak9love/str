@@ -127,4 +127,9 @@
     <string name="shell_insert_pick_title">برنامه‌ای برای درج انتخاب کنید</string>
     <string name="shell_undo">واگرد</string>
     <string name="shell_redo">ازنو</string>
+    <string name="shell_find">جستجو</string>
+    <string name="shell_find_prev">مورد قبلی</string>
+    <string name="shell_find_next">مورد بعدی</string>
+    <string name="shell_more">بیشتر</string>
+    <string name="shell_command_placeholder">برای نوشتن دستور لمس کنید…</string>
 </resources>
