@@ -30,11 +30,11 @@ import dev.cluvex.strata.core.shell.ShellTiles
 /**
  * A Quick Settings tile that runs one saved command; the app itself is never opened.
  *
- * The command runs right here and [ShellStatus] shows "running" and then the result: as an overlay banner when
- * "Show status message" is on and the app may display over other apps, otherwise as a plain Toast. The panel stays
- * open and the tile can be seen switching on while the command runs and off when it ends. Only a command that has
- * to ask something first (confirmation, {package}) goes through [ShellShortcutActivity], the same screenless target
- * the launcher shortcuts use; Android only lets a tile start a screen by closing the panel, so the panel closes then.
+ * With "Show status message" on (or when the command has to ask something first: confirmation, {package}) the run
+ * goes through [ShellShortcutActivity], the same screenless target the launcher shortcuts use; Android only lets a
+ * tile start a screen by closing the panel, so the panel closes and [ShellStatus] shows the banner (or a Toast)
+ * on the home screen instead of behind the panel. With the message off, the command runs right here, the panel
+ * stays open and the tile can be seen switching on while it runs and off when it ends.
  */
 abstract class ShellTileService(private val slot: Int) : TileService() {
 
@@ -104,15 +104,15 @@ abstract class ShellTileService(private val slot: Int) : TileService() {
     }
 
     private fun start(command: SavedCommand) {
-        // Only a command that has to ask something first needs a screen; the status itself is an overlay or a Toast.
-        if (command.confirm || ShellParams.needsPackage(command.command)) openActivity(command) else runHere(command)
+        // With the status message on (or a question to ask first) the panel is closed by starting the screenless activity,
+        // otherwise the banner would be drawn behind the open Quick Settings panel. With it off the panel stays open.
+        if (command.showStatus || command.confirm || ShellParams.needsPackage(command.command)) openActivity(command) else runHere(command)
     }
 
     private fun runHere(command: SavedCommand) {
         // The same command is not started twice while it is still running.
         if (command.id in ShellRunTracker.runs.value) return
-        // The run (and its status: overlay banner, or a Toast) belongs to the process, not to this service: the service
-        // is released when the panel closes.
+        // The run belongs to the process, not to this service: the service is released when the panel closes.
         ShellStatus.start(applicationContext, command, ShellLogSource.TILE)
     }
 
