@@ -201,18 +201,27 @@ internal fun SymbolBar(editor: CommandEditorState, onInsert: (String) -> Unit, m
     }
 }
 
-private val COMMENT = Regex("(?m)(?<=^|\\s)#.*$")
-private val STRING = Regex("\"(?:\\\\.|[^\"\\\\])*\"?|'[^']*'?")
-private val VARIABLE = Regex("\\$(?:\\{[^}]*}?|\\([^)]*\\)?|[A-Za-z_][A-Za-z0-9_]*|[?#@*!$0-9])")
-private val PLACEHOLDER = Regex("\\{package}")
-private val OPERATOR = Regex("[|&;<>]")
-private val FLAG = Regex("(?<=^|\\s)--?[A-Za-z][\\w-]*")
+/**
+ * Android's regex engine (ICU) is stricter than the JVM's: a bare "}" or "{" is a syntax error, so every brace
+ * is escaped. A pattern that still fails to compile is skipped, so a colouring problem can never crash the editor.
+ */
+private fun safeRegex(pattern: String): Regex? = runCatching { Regex(pattern) }.getOrNull()
+
+private val COMMENT = safeRegex("(?m)(?:^|(?<=\\s))#.*$")
+private val STRING = safeRegex("\"(?:\\\\.|[^\"\\\\])*\"?|'[^']*'?")
+private val VARIABLE = safeRegex("\\$(?:\\{[^\\}]*\\}?|\\([^\\)]*\\)?|[A-Za-z_][A-Za-z0-9_]*|[?#@*!\\$0-9])")
+private val PLACEHOLDER = safeRegex("\\{package\\}")
+private val OPERATOR = safeRegex("[|\\&;<>]")
+private val FLAG = safeRegex("(?m)(?:^|(?<=\\s))--?[A-Za-z][A-Za-z0-9_\\-]*")
 
 /** Light syntax colouring for a shell command. Later rules win over earlier ones where they overlap. */
 internal fun highlightShell(text: String, c: ColorScheme): AnnotatedString = buildAnnotatedString {
     append(text)
-    fun paint(regex: Regex, style: SpanStyle) {
-        regex.findAll(text).forEach { m -> if (m.range.last >= m.range.first) addStyle(style, m.range.first, m.range.last + 1) }
+    fun paint(regex: Regex?, style: SpanStyle) {
+        if (regex == null) return
+        runCatching {
+            regex.findAll(text).forEach { m -> if (m.range.last >= m.range.first) addStyle(style, m.range.first, m.range.last + 1) }
+        }
     }
     paint(FLAG, SpanStyle(color = c.secondary))
     paint(OPERATOR, SpanStyle(color = c.primary, fontWeight = FontWeight.Bold))
