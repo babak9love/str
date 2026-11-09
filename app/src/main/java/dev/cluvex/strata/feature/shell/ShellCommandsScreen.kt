@@ -1000,12 +1000,12 @@ private fun EditCommandDialog(
             }
             Text(stringResource(R.string.shell_tile_setting), style = MaterialTheme.typography.labelLarge)
             Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                FilterChip(selected = tile == 0, onClick = { tile = 0 }, label = { Text(stringResource(R.string.shell_tile_none)) })
                 for (n in 1..dev.cluvex.strata.core.shell.ShellTiles.SLOTS) {
                     val owner = takenTiles[n]
                     FilterChip(
                         selected = tile == n,
-                        onClick = { tile = n },
+                        // Tapping the chosen tile again clears the choice (0 = no tile).
+                        onClick = { tile = if (tile == n) 0 else n },
                         // A slot another command already holds is highlighted and shows that command's name.
                         label = { Text(if (owner == null) n.toString() else "$n · ${owner.take(10)}${if (owner.length > 10) "…" else ""}") },
                         colors = if (owner == null) FilterChipDefaults.filterChipColors() else FilterChipDefaults.filterChipColors(
@@ -1027,6 +1027,13 @@ private fun EditCommandDialog(
             } else if (tile != 0) {
                 Text(
                     stringResource(R.string.shell_tile_hint),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            if (tile != 0) {
+                Text(
+                    stringResource(R.string.shell_tile_deselect),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
