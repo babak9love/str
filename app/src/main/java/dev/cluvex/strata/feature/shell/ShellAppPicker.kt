@@ -58,12 +58,12 @@ import kotlinx.coroutines.withContext
  * box, and nothing runs until the Run button next to Cancel is pressed; it shows how many apps are chosen.
  */
 @Composable
-internal fun ShellAppPickerDialog(title: String, lastPackage: String?, onPick: (List<String>) -> Unit, onDismiss: () -> Unit) {
+internal fun ShellAppPickerDialog(title: String, lastPackage: String?, onPick: (List<String>) -> Unit, onDismiss: () -> Unit, insert: Boolean = false) {
     var selected by remember { mutableStateOf(emptyList<String>()) }
     ExpressiveDialog(
         onDismissRequest = onDismiss,
         title = title,
-        confirmButton = { RunButton(selected, onPick) },
+        confirmButton = { RunButton(selected, onPick, insert) },
         dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.common_cancel)) } },
         text = { ShellAppPickerContent(lastPackage, selected, { selected = it }, onPick) },
     )
@@ -84,9 +84,15 @@ internal fun ShellAppPickerPlainDialog(title: String, lastPackage: String?, onPi
 
 /** Nothing runs until this is pressed; it shows how many apps are chosen. */
 @Composable
-private fun RunButton(selected: List<String>, onPick: (List<String>) -> Unit) {
+private fun RunButton(selected: List<String>, onPick: (List<String>) -> Unit, insert: Boolean = false) {
     TextButton(onClick = { onPick(selected) }, enabled = selected.isNotEmpty()) {
-        Text(if (selected.isEmpty()) stringResource(R.string.shell_run) else stringResource(R.string.shell_param_run_selected, selected.size))
+        Text(
+            when {
+                insert -> stringResource(R.string.shell_insert)
+                selected.isEmpty() -> stringResource(R.string.shell_run)
+                else -> stringResource(R.string.shell_param_run_selected, selected.size)
+            },
+        )
     }
 }
 

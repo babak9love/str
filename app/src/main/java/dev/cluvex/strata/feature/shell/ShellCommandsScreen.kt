@@ -42,6 +42,20 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.material.icons.rounded.Stop
+import androidx.compose.material.icons.rounded.Fullscreen
+import androidx.compose.material.icons.rounded.ClearAll
+import androidx.compose.material.icons.rounded.ContentPaste
+import androidx.compose.material.icons.rounded.Apps
+import androidx.compose.material.icons.rounded.Code
+import kotlinx.coroutines.CoroutineScope
+import dev.cluvex.strata.core.shell.ShellResult
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.foundation.layout.ime
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.ui.text.TextRange
+import androidx.compose.ui.text.input.TextFieldValue
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.systemBarsPadding
@@ -882,7 +896,9 @@ private fun EditCommandDialog(
     onDismiss: () -> Unit,
 ) {
     var name by remember { mutableStateOf(existing?.name.orEmpty()) }
-    var command by remember { mutableStateOf(existing?.command.orEmpty()) }
+    val editor = remember { CommandEditorState(existing?.command.orEmpty()) }
+    val commandField = editor.value
+    val command = commandField.text
     var shortcut by remember { mutableStateOf(existing?.shortcut ?: false) }
     var mode by remember { mutableStateOf(existing?.mode ?: ShellMode.AUTO) }
     var timeoutSec by remember { mutableStateOf(existing?.timeoutSec ?: ShellRunner.DEFAULT_TIMEOUT_SEC) }
@@ -902,6 +918,52 @@ private fun EditCommandDialog(
     val maxShortcuts = remember { runCatching { ShortcutManagerCompat.getMaxShortcutCountPerActivity(overlayContext) }.getOrDefault(0) }
     val shortcutsFull = maxShortcuts > 0 && otherShortcuts >= maxShortcuts
     val overlayLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { }
+    val highlight = rememberShellHighlight()
+    val clipboard = rememberTextClipboard()
+    var expanded by remember { mutableStateOf(false) }
+    var pickInsert by remember { mutableStateOf(false) }
+    var pickTest by remember { mutableStateOf(false) }
+    var snippetsOpen by remember { mutableStateOf(false) }
+    var cmdFocused by remember { mutableStateOf(false) }
+    var askDiscard by remember { mutableStateOf(false) }
+    val imeVisible = WindowInsets.ime.getBottom(LocalDensity.current) > 0
+    // When the name is left empty, the command's first line is used (the same rule the save uses).
+    val autoName = remember(command) { command.lineSequence().firstOrNull { it.isNotBlank() }?.trim().orEmpty().take(40) }
+    /** Writes [text] at the cursor (replacing any selection) and leaves the cursor after it. */
+    fun insertText(text: String) {
+        val v = editor.value
+        val start = v.selection.min.coerceIn(0, v.text.length)
+        val end = v.selection.max.coerceIn(start, v.text.length)
+        editor.set(TextFieldValue(v.text.replaceRange(start, end, text), TextRange(start + text.length)))
+    }
+    /** A ready-made command: replaces an empty box, otherwise goes on a new line at the end. */
+    fun applySnippet(label: String, cmd: String) {
+        val joined = if (command.isBlank()) cmd else command.trimEnd('\n') + "\n" + cmd
+        editor.set(TextFieldValue(joined, TextRange(joined.length)))
+        if (name.isBlank()) name = label
+    }
+    // A test run executes the command once, right here, without saving it or writing it to the history.
+    var testOutput by remember { mutableStateOf<String?>(null) }
+    var testResult by remember { mutableStateOf<ShellResult?>(null) }
+    var testRunning by remember { mutableStateOf(false) }
+    val testScope = rememberCoroutineScope()
+    val runningNow by rememberUpdatedState(testRunning)
+    val testId = "editortest"
+    val testTimeout = if (timeoutSec <= ShellRunner.NO_TIMEOUT) ShellRunner.DEFAULT_TIMEOUT_SEC else timeoutSec
+    fun runTest(cmd: String) {
+        testOutput = ""
+        testResult = null
+        testRunning = true
+        testScope.launch {
+            val r = ShellRunner.run(cmd, mode, testTimeout, onOutput = { chunk -> testOutput = ((testOutput ?: "") + chunk).takeLast(20_000) }, runId = testId)
+            testOutput = r.output.takeLast(20_000)
+            testResult = r
+            testRunning = false
+        }
+    }
+    DisposableEffect(Unit) {
+        onDispose { if (runningNow) CoroutineScope(Dispatchers.IO).launch { ShellRunner.stopRun(testId, mode) } }
+    }
     if (askOverlay) {
         ExpressiveDialog(
             onDismissRequest = { askOverlay = false },
@@ -927,6 +989,49 @@ private fun EditCommandDialog(
             onConfirm = { onNewGroup(it); group = it.trim(); newGroupDialog = false },
         )
     }
+    // Closing with unsaved changes asks first.
+    val initialValues = remember { listOf<Any>(name, command, shortcut, mode, timeoutSec, detached, confirm, showStatus, waitText, group, tile) }
+    val dirty = listOf<Any>(name, command, shortcut, mode, timeoutSec, detached, confirm, showStatus, waitText, group, tile) != initialValues
+    val requestClose: () -> Unit = { if (dirty) { askDiscard = true } else { onDismiss() } }
+    if (askDiscard) {
+        ExpressiveDialog(
+            onDismissRequest = { askDiscard = false },
+            title = stringResource(R.string.shell_discard_title),
+            icon = Icons.Rounded.Edit,
+            confirmButton = { TextButton(onClick = { askDiscard = false; onDismiss() }) { Text(stringResource(R.string.common_discard)) } },
+            dismissButton = { TextButton(onClick = { askDiscard = false }) { Text(stringResource(R.string.shell_keep_editing)) } },
+        ) {
+            Text(stringResource(R.string.shell_discard_message))
+        }
+    }
+    if (pickInsert) {
+        ShellAppPickerDialog(
+            title = stringResource(R.string.shell_insert_pick_title),
+            lastPackage = null,
+            insert = true,
+            onPick = { pkgs -> pickInsert = false; insertText(pkgs.filter { ShellParams.isValidPackage(it) }.joinToString(" ")) },
+            onDismiss = { pickInsert = false },
+        )
+    }
+    if (pickTest) {
+        ShellAppPickerDialog(
+            title = stringResource(R.string.shell_param_pick_title, name.ifBlank { autoName }),
+            lastPackage = null,
+            onPick = { pkgs ->
+                pickTest = false
+                runTest(ShellParams.resolveAll(SavedCommand(id = testId, name = name, command = command.trim()), pkgs).command)
+            },
+            onDismiss = { pickTest = false },
+        )
+    }
+    if (expanded) {
+        ExpandedCommandEditor(
+            editor = editor,
+            onInsert = { insertText(it) },
+            highlight = highlight,
+            onClose = { expanded = false },
+        )
+    }
     // A full-screen editor instead of a small dialog: the options are grouped into sections (run, result, quick
     // access) and the whole page scrolls, so nothing is squeezed into a short inner scroll area.
     var quickOpen by remember { mutableStateOf(group.isNotEmpty() || shortcut || tile != 0) }
@@ -938,7 +1043,7 @@ private fun EditCommandDialog(
         )
     }
     Dialog(
-        onDismissRequest = onDismiss,
+        onDismissRequest = requestClose,
         properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false),
     ) {
         Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.surface) {
@@ -949,7 +1054,7 @@ private fun EditCommandDialog(
                     TopAppBar(
                         title = { Text(stringResource(if (existing == null) R.string.shell_add else R.string.shell_edit)) },
                         navigationIcon = {
-                            IconButton(onClick = onDismiss) {
+                            IconButton(onClick = requestClose) {
                                 Icon(Icons.Rounded.Close, contentDescription = stringResource(R.string.common_cancel))
                             }
                         },
@@ -958,6 +1063,7 @@ private fun EditCommandDialog(
                         },
                     )
                 },
+                bottomBar = { if (cmdFocused && imeVisible) SymbolBar(editor, onInsert = { insertText(it) }) },
             ) { padding ->
                 Column(
                     Modifier.padding(padding).fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 8.dp),
@@ -967,6 +1073,7 @@ private fun EditCommandDialog(
                         value = name,
                         onValueChange = { name = it },
                         label = { Text(stringResource(R.string.common_name)) },
+                        placeholder = { if (autoName.isNotEmpty()) Text(autoName, maxLines = 1, overflow = TextOverflow.Ellipsis) },
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth(),
                     )
@@ -982,8 +1089,8 @@ private fun EditCommandDialog(
                     }
                     Box(Modifier.fillMaxWidth()) {
                         OutlinedTextField(
-                            value = command,
-                            onValueChange = { command = it },
+                            value = commandField,
+                            onValueChange = { editor.onChange(it) },
                             label = { Text(stringResource(R.string.shell_command)) },
                             minLines = 3,
                             maxLines = 6,
@@ -994,13 +1101,117 @@ private fun EditCommandDialog(
                             keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.None, autoCorrectEnabled = false),
                             // Room at the end of the first line for the help icon, so text never runs under it.
                             trailingIcon = { Spacer(Modifier.width(32.dp)) },
-                            modifier = Modifier.fillMaxWidth(),
+                            visualTransformation = highlight,
+                            modifier = Modifier.fillMaxWidth().onFocusChanged { cmdFocused = it.isFocused },
                         )
                         IconButton(
                             onClick = { showHelp = !showHelp },
                             modifier = Modifier.align(Alignment.TopEnd).padding(top = 12.dp, end = 8.dp).size(32.dp),
                         ) {
                             Icon(Icons.Rounded.Info, contentDescription = stringResource(R.string.shell_help), modifier = Modifier.size(20.dp))
+                        }
+                    }
+
+                    // Helpers for writing the command: ready-made commands, an app's package name, clipboard, full screen.
+                    Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                        UndoRedoButtons(editor)
+                        Box {
+                            AssistChip(
+                                onClick = { snippetsOpen = true },
+                                label = { Text(stringResource(R.string.shell_tool_snippets)) },
+                                leadingIcon = { Icon(Icons.Rounded.Code, contentDescription = null, modifier = Modifier.size(18.dp)) },
+                            )
+                            DropdownMenu(expanded = snippetsOpen, onDismissRequest = { snippetsOpen = false }) {
+                                SHELL_SNIPPETS.forEach { sn ->
+                                    val label = stringResource(sn.label)
+                                    DropdownMenuItem(
+                                        text = { Text(label) },
+                                        onClick = { snippetsOpen = false; applySnippet(label, sn.command) },
+                                    )
+                                }
+                            }
+                        }
+                        AssistChip(
+                            onClick = { pickInsert = true },
+                            label = { Text(stringResource(R.string.shell_tool_app)) },
+                            leadingIcon = { Icon(Icons.Rounded.Apps, contentDescription = null, modifier = Modifier.size(18.dp)) },
+                        )
+                        AssistChip(onClick = { insertText(ShellParams.PACKAGE) }, label = { Text(ShellParams.PACKAGE) })
+                        AssistChip(
+                            onClick = { clipboard.readText { t -> if (t.isNotEmpty()) insertText(t) } },
+                            label = { Text(stringResource(R.string.shell_tool_paste)) },
+                            leadingIcon = { Icon(Icons.Rounded.ContentPaste, contentDescription = null, modifier = Modifier.size(18.dp)) },
+                        )
+                        AssistChip(
+                            onClick = { editor.set(TextFieldValue("")) },
+                            enabled = command.isNotEmpty(),
+                            label = { Text(stringResource(R.string.common_clear)) },
+                            leadingIcon = { Icon(Icons.Rounded.ClearAll, contentDescription = null, modifier = Modifier.size(18.dp)) },
+                        )
+                        AssistChip(
+                            onClick = { expanded = true },
+                            label = { Text(stringResource(R.string.shell_tool_expand)) },
+                            leadingIcon = { Icon(Icons.Rounded.Fullscreen, contentDescription = null, modifier = Modifier.size(18.dp)) },
+                        )
+                    }
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                        OutlinedButton(
+                            onClick = { if (ShellParams.needsPackage(command)) pickTest = true else runTest(command.trim()) },
+                            enabled = command.isNotBlank() && !testRunning,
+                        ) {
+                            Icon(Icons.Rounded.PlayArrow, contentDescription = null, modifier = Modifier.size(18.dp))
+                            Spacer(Modifier.width(6.dp))
+                            Text(stringResource(R.string.shell_test_run))
+                        }
+                        if (testRunning) {
+                            OutlinedButton(onClick = { testScope.launch { ShellRunner.stopRun(testId, mode) } }) {
+                                Icon(Icons.Rounded.Stop, contentDescription = null, modifier = Modifier.size(18.dp))
+                                Spacer(Modifier.width(6.dp))
+                                Text(stringResource(R.string.common_stop))
+                            }
+                        }
+                    }
+                    val shownOutput = testOutput
+                    if (shownOutput == null) {
+                        Text(
+                            stringResource(R.string.shell_test_hint),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    } else {
+                        val res = testResult
+                        Surface(shape = RoundedCornerShape(12.dp), color = MaterialTheme.colorScheme.surfaceContainerLow, modifier = Modifier.fillMaxWidth()) {
+                            Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    if (res == null) {
+                                        CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp)
+                                        Text(stringResource(R.string.shell_test_running), style = MaterialTheme.typography.labelLarge)
+                                    } else {
+                                        val ok = res.backend != null && !res.timedOut && !res.stopped && res.exitCode == 0
+                                        Text(
+                                            when {
+                                                res.backend == null -> stringResource(R.string.shell_banner_no_backend)
+                                                res.timedOut -> stringResource(R.string.shell_log_timed_out)
+                                                res.stopped -> stringResource(R.string.shell_log_stopped)
+                                                res.exitCode != 0 -> stringResource(R.string.shell_log_failed) + " · " + stringResource(R.string.shell_exit_code, res.exitCode)
+                                                else -> stringResource(R.string.shell_log_success)
+                                            },
+                                            style = MaterialTheme.typography.labelLarge,
+                                            color = if (ok) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error,
+                                        )
+                                    }
+                                }
+                                val outScroll = rememberScrollState()
+                                // Follow the end of the output while the command is still printing.
+                                LaunchedEffect(shownOutput.length) { if (res == null) outScroll.scrollTo(outScroll.maxValue) }
+                                SelectionContainer {
+                                    Text(
+                                        shownOutput.ifEmpty { if (res != null) stringResource(R.string.shell_no_output) else "" },
+                                        style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace, textDirection = TextDirection.Ltr),
+                                        modifier = Modifier.fillMaxWidth().heightIn(max = 220.dp).verticalScroll(outScroll),
+                                    )
+                                }
+                            }
                         }
                     }
 
