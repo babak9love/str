@@ -158,6 +158,7 @@ import kotlinx.coroutines.withContext
 import dev.cluvex.strata.core.shell.ShellBackend
 import dev.cluvex.strata.core.shell.ShellMode
 import dev.cluvex.strata.core.shell.ShellParams
+import dev.cluvex.strata.feature.editor.EditorController
 import dev.cluvex.strata.core.shell.ShellRunner
 import dev.cluvex.strata.ui.expressive.ExpressiveDialog
 import dev.cluvex.strata.ui.expressive.ExpressiveEmptyState
@@ -898,6 +899,8 @@ private fun EditCommandDialog(
 ) {
     var name by remember { mutableStateOf(existing?.name.orEmpty()) }
     val editor = remember { CommandEditorState(existing?.command.orEmpty()) }
+    // Strata's own code editor, used by the full-screen command editor; it reports its text back into [editor].
+    val controller = remember { EditorController().also { c -> c.onEdited = { editor.syncText(c.text()) } } }
     val commandField = editor.value
     val command = commandField.text
     var shortcut by remember { mutableStateOf(existing?.shortcut ?: false) }
@@ -930,6 +933,11 @@ private fun EditCommandDialog(
     val autoName = remember(command) { command.lineSequence().firstOrNull { it.isNotBlank() }?.trim().orEmpty().take(40) }
     /** Writes [text] at the cursor (replacing any selection) and leaves the cursor after it. */
     fun insertText(text: String) {
+        // While the full-screen editor is open it owns the text (and the cursor), so write there.
+        if (expanded && controller.editor != null) {
+            controller.insertText(text)
+            return
+        }
         val v = editor.value
         val start = v.selection.min.coerceIn(0, v.text.length)
         val end = v.selection.max.coerceIn(start, v.text.length)
@@ -938,7 +946,7 @@ private fun EditCommandDialog(
     /** A ready-made command: replaces an empty box, otherwise goes on a new line at the end. */
     fun applySnippet(label: String, cmd: String) {
         val joined = if (command.isBlank()) cmd else command.trimEnd('\n') + "\n" + cmd
-        editor.set(TextFieldValue(joined, TextRange(joined.length)))
+        if (expanded && controller.editor != null) controller.replaceWhole(joined) else editor.set(TextFieldValue(joined, TextRange(joined.length)))
         if (name.isBlank()) name = label
     }
     // A test run executes the command once, right here, without saving it or writing it to the history.
@@ -1025,8 +1033,8 @@ private fun EditCommandDialog(
     }
     if (expanded) {
         ExpandedCommandEditor(
-            editor = editor,
-            highlight = highlight,
+            controller = controller,
+            initialText = editor.value.text,
             testStatus = { TestStatus(testResult, testRunning) },
             testOutput = testOutput,
             testRunning = testRunning,
@@ -1037,7 +1045,7 @@ private fun EditCommandDialog(
             onSnippet = { label, cmd -> applySnippet(label, cmd) },
             onPickApp = { pickInsert = true },
             onPaste = { clipboard.readText { t -> if (t.isNotEmpty()) insertText(t) } },
-            onClear = { editor.set(TextFieldValue("")) },
+            onClear = { controller.replaceWhole("") },
             onClose = { expanded = false },
         )
     }
@@ -1103,11 +1111,11 @@ private fun EditCommandDialog(
                         onRun = { if (ShellParams.needsPackage(command)) pickTest = true else runTest(command.trim()) },
                         onStop = { testScope.launch { ShellRunner.stopRun(testId, mode) } },
                         header = {
-                            Text(stringResource(R.string.shell_command), style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
+                            Text(stringResource(R.string.shell_command), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
                             Icon(
                                 Icons.Rounded.Info,
                                 contentDescription = stringResource(R.string.shell_help),
-                                modifier = Modifier.padding(start = 6.dp).size(22.dp).clip(CircleShape).clickable { showHelp = !showHelp }.padding(2.dp),
+                                modifier = Modifier.padding(start = 4.dp).size(20.dp).clip(CircleShape).clickable { showHelp = !showHelp }.padding(1.dp),
                             )
                         },
                     )
