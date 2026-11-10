@@ -206,18 +206,79 @@ internal class CommandEditorState(initial: String) {
 /** A ready-made command the editor can drop into the command box. */
 internal class ShellSnippet(@StringRes val label: Int, val command: String)
 
-internal val SHELL_SNIPPETS = listOf(
-    ShellSnippet(R.string.shell_snip_force_stop, "am force-stop {package}"),
-    ShellSnippet(R.string.shell_snip_open_app, "monkey -p {package} -c android.intent.category.LAUNCHER 1"),
-    ShellSnippet(R.string.shell_snip_clear_data, "pm clear {package}"),
-    ShellSnippet(R.string.shell_snip_disable, "pm disable-user --user 0 {package}"),
-    ShellSnippet(R.string.shell_snip_enable, "pm enable {package}"),
-    ShellSnippet(R.string.shell_snip_screenshot, "screencap -p /sdcard/Pictures/screenshot_\$(date +%Y%m%d_%H%M%S).png"),
-    ShellSnippet(R.string.shell_snip_wifi_on, "svc wifi enable"),
-    ShellSnippet(R.string.shell_snip_wifi_off, "svc wifi disable"),
-    ShellSnippet(R.string.shell_snip_data_on, "svc data enable"),
-    ShellSnippet(R.string.shell_snip_data_off, "svc data disable"),
-    ShellSnippet(R.string.shell_snip_restart_ui, "killall com.android.systemui"),
+/** A group of templates, shown under its own heading in the templates menu. */
+internal class ShellSnippetGroup(@StringRes val title: Int, val snippets: List<ShellSnippet>)
+
+internal val SHELL_SNIPPET_GROUPS = listOf(
+    ShellSnippetGroup(
+        R.string.shell_snip_group_apps,
+        listOf(
+            ShellSnippet(R.string.shell_snip_force_stop, "am force-stop {package}"),
+            ShellSnippet(R.string.shell_snip_open_app, "monkey -p {package} -c android.intent.category.LAUNCHER 1"),
+            ShellSnippet(R.string.shell_snip_kill, "am kill {package}"),
+            ShellSnippet(R.string.shell_snip_clear_data, "pm clear {package}"),
+            ShellSnippet(R.string.shell_snip_trim_caches, "pm trim-caches 999G"),
+            ShellSnippet(R.string.shell_snip_disable, "pm disable-user --user 0 {package}"),
+            ShellSnippet(R.string.shell_snip_enable, "pm enable {package}"),
+            ShellSnippet(R.string.shell_snip_uninstall_user, "pm uninstall --user 0 {package}"),
+            ShellSnippet(R.string.shell_snip_install_existing, "cmd package install-existing {package}"),
+            ShellSnippet(R.string.shell_snip_restrict_bg, "cmd appops set {package} RUN_ANY_IN_BACKGROUND deny"),
+            ShellSnippet(R.string.shell_snip_compile, "cmd package compile -m speed-profile -f {package}"),
+            ShellSnippet(R.string.shell_snip_grant, "pm grant {package} android.permission."),
+        ),
+    ),
+    ShellSnippetGroup(
+        R.string.shell_snip_group_display,
+        listOf(
+            ShellSnippet(R.string.shell_snip_anim_off, "settings put global window_animation_scale 0\nsettings put global transition_animation_scale 0\nsettings put global animator_duration_scale 0"),
+            ShellSnippet(R.string.shell_snip_anim_on, "settings put global window_animation_scale 1\nsettings put global transition_animation_scale 1\nsettings put global animator_duration_scale 1"),
+            ShellSnippet(R.string.shell_snip_dark_on, "cmd uimode night yes"),
+            ShellSnippet(R.string.shell_snip_dark_off, "cmd uimode night no"),
+            ShellSnippet(R.string.shell_snip_stay_awake, "settings put global stay_on_while_plugged_in 3"),
+            ShellSnippet(R.string.shell_snip_show_touches, "settings put system show_touches 1"),
+            ShellSnippet(R.string.shell_snip_density_reset, "wm density reset"),
+            ShellSnippet(R.string.shell_snip_size_reset, "wm size reset"),
+        ),
+    ),
+    ShellSnippetGroup(
+        R.string.shell_snip_group_connect,
+        listOf(
+            ShellSnippet(R.string.shell_snip_wifi_on, "svc wifi enable"),
+            ShellSnippet(R.string.shell_snip_wifi_off, "svc wifi disable"),
+            ShellSnippet(R.string.shell_snip_data_on, "svc data enable"),
+            ShellSnippet(R.string.shell_snip_data_off, "svc data disable"),
+            ShellSnippet(R.string.shell_snip_airplane_on, "cmd connectivity airplane-mode enable"),
+            ShellSnippet(R.string.shell_snip_airplane_off, "cmd connectivity airplane-mode disable"),
+            ShellSnippet(R.string.shell_snip_bt_on, "svc bluetooth enable"),
+            ShellSnippet(R.string.shell_snip_bt_off, "svc bluetooth disable"),
+            ShellSnippet(R.string.shell_snip_nfc_on, "svc nfc enable"),
+            ShellSnippet(R.string.shell_snip_dnd_on, "cmd notification set_dnd priority"),
+            ShellSnippet(R.string.shell_snip_dnd_off, "cmd notification set_dnd off"),
+        ),
+    ),
+    ShellSnippetGroup(
+        R.string.shell_snip_group_system,
+        listOf(
+            ShellSnippet(R.string.shell_snip_screenshot, "screencap -p /sdcard/Pictures/screenshot_\$(date +%Y%m%d_%H%M%S).png"),
+            ShellSnippet(R.string.shell_snip_restart_ui, "killall com.android.systemui"),
+            ShellSnippet(R.string.shell_snip_battery_reset, "dumpsys batterystats --reset"),
+            ShellSnippet(R.string.shell_snip_doze_on, "dumpsys deviceidle force-idle"),
+            ShellSnippet(R.string.shell_snip_doze_off, "dumpsys deviceidle unforce"),
+            ShellSnippet(R.string.shell_snip_battery_fake, "dumpsys battery set level 20"),
+            ShellSnippet(R.string.shell_snip_battery_fake_reset, "dumpsys battery reset"),
+            ShellSnippet(R.string.shell_snip_logcat_clear, "logcat -c"),
+            ShellSnippet(R.string.shell_snip_list_user_apps, "pm list packages -3"),
+            ShellSnippet(R.string.shell_snip_screen_off, "input keyevent 26"),
+        ),
+    ),
+    ShellSnippetGroup(
+        R.string.shell_snip_group_open,
+        listOf(
+            ShellSnippet(R.string.shell_snip_start_activity, "am start -n "),  // ends with a space on purpose: the component (package/.Activity) is typed after it
+            ShellSnippet(R.string.shell_snip_open_settings, "am start -a android.settings.SETTINGS"),
+            ShellSnippet(R.string.shell_snip_open_link, "am start -a android.intent.action.VIEW -d https://"),
+        ),
+    ),
 )
 
 /** Label shown on a key and the text it inserts. */
@@ -570,12 +631,12 @@ internal fun ExpandedCommandEditor(
                                         modifier = Modifier.weight(1f),
                                     )
                                 }
+                                Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) { optionChips() }
+                                // The replace actions on the left, always in view, and the match navigation on the right.
                                 Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Row(Modifier.weight(1f).horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                                        optionChips()
-                                        TextButton(onClick = { controller.replace(replacement) }, enabled = controller.matchCount > 0) { Text(stringResource(R.string.shell_find_replace)) }
-                                        TextButton(onClick = { controller.replaceAll(replacement) }, enabled = controller.matchCount > 0) { Text(stringResource(R.string.shell_find_replace_all)) }
-                                    }
+                                    TextButton(onClick = { controller.replace(replacement) }, enabled = controller.matchCount > 0) { Text(stringResource(R.string.shell_find_replace)) }
+                                    TextButton(onClick = { controller.replaceAll(replacement) }, enabled = controller.matchCount > 0) { Text(stringResource(R.string.shell_find_replace_all)) }
+                                    Spacer(Modifier.weight(1f))
                                     navButtons()
                                 }
                             }
@@ -593,10 +654,20 @@ internal fun ExpandedCommandEditor(
                                 label = { Text(stringResource(R.string.shell_tool_snippets)) },
                                 leadingIcon = { Icon(Icons.Rounded.Code, contentDescription = null, modifier = Modifier.size(18.dp)) },
                             )
-                            DropdownMenu(expanded = snippetsOpen, onDismissRequest = { snippetsOpen = false }) {
-                                SHELL_SNIPPETS.forEach { sn ->
-                                    val label = stringResource(sn.label)
-                                    DropdownMenuItem(text = { Text(label) }, onClick = { snippetsOpen = false; onSnippet(label, sn.command) })
+                            // The list is long, so the menu has a height limit and scrolls.
+                            DropdownMenu(expanded = snippetsOpen, onDismissRequest = { snippetsOpen = false }, modifier = Modifier.heightIn(max = 380.dp)) {
+                                SHELL_SNIPPET_GROUPS.forEachIndexed { gi, group ->
+                                    if (gi > 0) Box(Modifier.fillMaxWidth().height(1.dp).background(scheme.outlineVariant))
+                                    Text(
+                                        stringResource(group.title),
+                                        style = MaterialTheme.typography.labelMedium,
+                                        color = scheme.primary,
+                                        modifier = Modifier.padding(start = 12.dp, end = 12.dp, top = 8.dp, bottom = 4.dp),
+                                    )
+                                    group.snippets.forEach { sn ->
+                                        val label = stringResource(sn.label)
+                                        DropdownMenuItem(text = { Text(label) }, onClick = { snippetsOpen = false; onSnippet(label, sn.command) })
+                                    }
                                 }
                             }
                         }
