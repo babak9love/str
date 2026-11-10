@@ -1084,24 +1084,12 @@ private fun EditCommandDialog(
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth(),
                     )
-                    // Test run sits above the command box, with how the last run ended beside it.
-                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
-                        OutlinedButton(
-                            onClick = { if (ShellParams.needsPackage(command)) pickTest = true else runTest(command.trim()) },
-                            enabled = command.isNotBlank() && !testRunning,
-                        ) {
-                            Icon(Icons.Rounded.PlayArrow, contentDescription = null, modifier = Modifier.size(18.dp))
-                            Spacer(Modifier.width(6.dp))
-                            Text(stringResource(R.string.shell_test_run))
+                    // The command: a framed preview (tap it to open the editor) with Run on the corner of the frame.
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(stringResource(R.string.shell_command), style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
+                        IconButton(onClick = { showHelp = !showHelp }, modifier = Modifier.size(32.dp)) {
+                            Icon(Icons.Rounded.Info, contentDescription = stringResource(R.string.shell_help), modifier = Modifier.size(18.dp))
                         }
-                        if (testRunning) {
-                            OutlinedButton(onClick = { testScope.launch { ShellRunner.stopRun(testId, mode) } }) {
-                                Icon(Icons.Rounded.Stop, contentDescription = null, modifier = Modifier.size(18.dp))
-                                Spacer(Modifier.width(6.dp))
-                                Text(stringResource(R.string.common_stop))
-                            }
-                        }
-                        TestStatus(testResult, testRunning)
                     }
                     if (showHelp) {
                         Column(
@@ -1109,54 +1097,19 @@ private fun EditCommandDialog(
                             verticalArrangement = Arrangement.spacedBy(10.dp),
                         ) {
                             HelpEntry("{package}", stringResource(R.string.shell_param_hint))
+                            HelpEntry("\u25B6", stringResource(R.string.shell_test_hint))
                         }
                     }
-                    // The command: a preview that opens the full-screen editor when tapped. Its helpers are inside the frame.
-                    Text(stringResource(R.string.shell_command), style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
-                    CommandBox(text = command, onOpen = { expanded = true }, onHelp = { showHelp = !showHelp }) {
-                        Box {
-                            AssistChip(
-                                onClick = { snippetsOpen = true },
-                                label = { Text(stringResource(R.string.shell_tool_snippets)) },
-                                leadingIcon = { Icon(Icons.Rounded.Code, contentDescription = null, modifier = Modifier.size(18.dp)) },
-                            )
-                            DropdownMenu(expanded = snippetsOpen, onDismissRequest = { snippetsOpen = false }) {
-                                SHELL_SNIPPETS.forEach { sn ->
-                                    val label = stringResource(sn.label)
-                                    DropdownMenuItem(
-                                        text = { Text(label) },
-                                        onClick = { snippetsOpen = false; applySnippet(label, sn.command) },
-                                    )
-                                }
-                            }
-                        }
-                        AssistChip(
-                            onClick = { pickInsert = true },
-                            label = { Text(stringResource(R.string.shell_tool_app)) },
-                            leadingIcon = { Icon(Icons.Rounded.Apps, contentDescription = null, modifier = Modifier.size(18.dp)) },
-                        )
-                        AssistChip(onClick = { insertText(ShellParams.PACKAGE) }, label = { Text(ShellParams.PACKAGE) })
-                        AssistChip(
-                            onClick = { clipboard.readText { t -> if (t.isNotEmpty()) insertText(t) } },
-                            label = { Text(stringResource(R.string.shell_tool_paste)) },
-                            leadingIcon = { Icon(Icons.Rounded.ContentPaste, contentDescription = null, modifier = Modifier.size(18.dp)) },
-                        )
-                        AssistChip(
-                            onClick = { editor.set(TextFieldValue("")) },
-                            enabled = command.isNotEmpty(),
-                            label = { Text(stringResource(R.string.common_clear)) },
-                            leadingIcon = { Icon(Icons.Rounded.ClearAll, contentDescription = null, modifier = Modifier.size(18.dp)) },
-                        )
-                    }
-                    if (testOutput == null) {
-                        Text(
-                            stringResource(R.string.shell_test_hint),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    } else {
-                        TestOutputPanel(testOutput, testRunning)
-                    }
+                    CommandBox(
+                        text = command,
+                        onOpen = { expanded = true },
+                        runEnabled = command.isNotBlank(),
+                        running = testRunning,
+                        onRun = { if (ShellParams.needsPackage(command)) pickTest = true else runTest(command.trim()) },
+                        onStop = { testScope.launch { ShellRunner.stopRun(testId, mode) } },
+                    )
+                    TestStatus(testResult, testRunning)
+                    if (testOutput != null) TestOutputPanel(testOutput, testRunning)
 
                     // ── Run ────────────────────────────────────────────────────────────────────────────────────
                     SectionTitle(stringResource(R.string.shell_section_run))

@@ -132,4 +132,10 @@
     <string name="shell_find_next">Следующее совпадение</string>
     <string name="shell_more">Ещё</string>
     <string name="shell_command_placeholder">Нажмите, чтобы ввести команду…</string>
+    <string name="shell_find_regex">Regex</string>
+    <string name="shell_find_case">Aa</string>
+    <string name="shell_find_word">Слово</string>
+    <string name="shell_find_replace">Заменить</string>
+    <string name="shell_find_replace_with">Заменить на</string>
+    <string name="shell_find_replace_all">Все</string>
 </resources>

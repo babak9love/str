@@ -98,6 +98,19 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import dev.cluvex.strata.R
+import kotlinx.coroutines.launch
+import dev.cluvex.strata.core.shell.ShellParams
+import androidx.compose.ui.graphics.Color
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.AssistChip
+import androidx.compose.material.icons.rounded.ContentPaste
+import androidx.compose.material.icons.rounded.Code
+import androidx.compose.material.icons.rounded.ClearAll
+import androidx.compose.material.icons.rounded.Apps
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import dev.cluvex.strata.core.shell.ShellResult
 import kotlin.math.roundToInt
 
@@ -301,58 +314,63 @@ internal fun TestOutputPanel(output: String?, running: Boolean, modifier: Modifi
 }
 
 /**
- * The command as it sits on the edit page: a framed, read-only preview with its helpers inside the frame. Tapping
- * it opens the full-screen editor; the helpers (templates, app, paste, clear) work without opening it.
+ * The command as it sits on the edit page: a framed, read-only preview with Run on the top edge of the frame.
+ * Tapping the frame opens the editor; while a test run is going, the same button stops it.
  */
 @Composable
 internal fun CommandBox(
     text: String,
     onOpen: () -> Unit,
-    onHelp: () -> Unit,
+    runEnabled: Boolean,
+    running: Boolean,
+    onRun: () -> Unit,
+    onStop: () -> Unit,
     modifier: Modifier = Modifier,
-    tools: @Composable RowScope.() -> Unit,
 ) {
     val scheme = MaterialTheme.colorScheme
     val preview = remember(text, scheme) { highlightShell(text, scheme) }
-    Surface(
-        shape = RoundedCornerShape(14.dp),
-        color = scheme.surface,
-        border = BorderStroke(1.5.dp, if (text.isEmpty()) scheme.outline else scheme.primary),
-        modifier = modifier.fillMaxWidth(),
-    ) {
-        Column {
-            Box(Modifier.fillMaxWidth().clickable(onClick = onOpen)) {
-                Text(
-                    if (text.isEmpty()) AnnotatedString(stringResource(R.string.shell_command_placeholder)) else preview,
-                    style = MaterialTheme.typography.bodyMedium.copy(
-                        fontFamily = FontFamily.Monospace,
-                        textDirection = TextDirection.Ltr,
-                        textAlign = TextAlign.Left,
-                        color = if (text.isEmpty()) scheme.onSurfaceVariant else scheme.onSurface,
-                    ),
-                    maxLines = 8,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.fillMaxWidth().heightIn(min = 96.dp).padding(start = 14.dp, top = 16.dp, end = 88.dp, bottom = 12.dp),
-                )
-                Row(Modifier.align(Alignment.TopEnd).padding(top = 4.dp, end = 4.dp)) {
-                    IconButton(onClick = onHelp, modifier = Modifier.size(40.dp)) {
-                        Icon(Icons.Rounded.Info, contentDescription = stringResource(R.string.shell_help), modifier = Modifier.size(20.dp))
-                    }
-                    IconButton(onClick = onOpen, modifier = Modifier.size(40.dp)) {
-                        Icon(Icons.Rounded.Fullscreen, contentDescription = stringResource(R.string.shell_tool_expand), modifier = Modifier.size(22.dp))
-                    }
-                }
-            }
-            Box(Modifier.fillMaxWidth().height(1.dp).background(scheme.outlineVariant))
-            Row(
-                Modifier.fillMaxWidth().background(scheme.surfaceContainerLow).horizontalScroll(rememberScrollState()).padding(horizontal = 10.dp, vertical = 6.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                content = tools,
+    // The frame starts 22.dp down so the Run button, centred on its top edge, stays inside this box and keeps its touch area.
+    Box(modifier.fillMaxWidth()) {
+        Surface(
+            shape = RoundedCornerShape(14.dp),
+            color = scheme.surface,
+            border = BorderStroke(1.5.dp, if (text.isEmpty()) scheme.outline else scheme.primary),
+            modifier = Modifier.fillMaxWidth().padding(top = 22.dp),
+        ) {
+            Text(
+                if (text.isEmpty()) AnnotatedString(stringResource(R.string.shell_command_placeholder)) else preview,
+                style = MaterialTheme.typography.bodyMedium.copy(
+                    fontFamily = FontFamily.Monospace,
+                    textDirection = TextDirection.Ltr,
+                    textAlign = TextAlign.Left,
+                    color = if (text.isEmpty()) scheme.onSurfaceVariant else scheme.onSurface,
+                ),
+                maxLines = 8,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.fillMaxWidth().clickable(onClick = onOpen).heightIn(min = 112.dp).padding(start = 14.dp, top = 28.dp, end = 72.dp, bottom = 14.dp),
             )
+        }
+        Surface(
+            onClick = if (running) onStop else onRun,
+            enabled = running || runEnabled,
+            shape = CircleShape,
+            color = scheme.secondaryContainer,
+            border = BorderStroke(1.5.dp, if (running || runEnabled) scheme.primary else scheme.outlineVariant),
+            modifier = Modifier.align(Alignment.TopEnd).padding(end = 14.dp).size(44.dp),
+        ) {
+            Box(contentAlignment = Alignment.Center) {
+                Icon(
+                    if (running) Icons.Rounded.Stop else Icons.Rounded.PlayArrow,
+                    contentDescription = stringResource(if (running) R.string.common_stop else R.string.shell_test_run),
+                    tint = if (running || runEnabled) scheme.primary else scheme.onSurface.copy(alpha = 0.38f),
+                )
+            }
         }
     }
 }
+
+/** Number of digits of the highest line number in [text] (at least 1). */
+private fun lineCountDigits(text: String): Int = (text.count { it == '\n' } + 1).toString().length
 
 /** Line and column (both from 1) of [offset] in [text]. */
 private fun lineAndColumn(text: String, offset: Int): Pair<Int, Int> {
@@ -363,9 +381,11 @@ private fun lineAndColumn(text: String, offset: Int): Pair<Int, Int> {
 }
 
 /**
- * The command editor at full screen, laid out like the text editor: back, title with the cursor position, undo,
- * redo, test run, done and a menu in the top bar; line numbers beside the text; the symbol strip above the keyboard.
- * It edits the same text as the preview on the edit page. Always laid out left to right, like the command itself.
+ * The command editor at full screen. Top row: back, title with the cursor position, undo, redo, search, test run and
+ * done. Under it the command helpers (templates, app, package, paste, clear), then the text with a narrow line-number
+ * column, the result of the last test run and the symbol strip above the keyboard. Search works like the text
+ * editor's: regex / match case / whole word / replace, with every match highlighted. Always laid out left to right,
+ * like the command itself. It edits the same text as the preview on the edit page.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -385,140 +405,199 @@ internal fun ExpandedCommandEditor(
     onClear: () -> Unit,
     onClose: () -> Unit,
 ) {
+    val scheme = MaterialTheme.colorScheme
     val fieldFocus = remember { FocusRequester() }
-    var menuOpen by remember { mutableStateOf(false) }
-    var showSnippets by remember { mutableStateOf(false) }
+    val queryFocus = remember { FocusRequester() }
+    val scope = rememberCoroutineScope()
+    var snippetsOpen by remember { mutableStateOf(false) }
     var findOpen by remember { mutableStateOf(false) }
     var query by remember { mutableStateOf("") }
+    var useRegex by remember { mutableStateOf(false) }
+    var matchCase by remember { mutableStateOf(false) }
+    var wholeWord by remember { mutableStateOf(false) }
+    var replaceOpen by remember { mutableStateOf(false) }
+    var replaceText by remember { mutableStateOf("") }
     var matchIndex by remember { mutableStateOf(0) }
+    var layout by remember { mutableStateOf<TextLayoutResult?>(null) }
+    val scroll = rememberScrollState()
     val value = editor.value
     val text = value.text
-    val matches = remember(query, text) {
-        if (query.isEmpty()) emptyList() else buildList {
-            var from = text.indexOf(query, 0, ignoreCase = true)
-            while (from >= 0) { add(from); from = text.indexOf(query, from + query.length, ignoreCase = true) }
+
+    val finder: Regex? = remember(query, useRegex, matchCase, wholeWord) {
+        if (query.isEmpty()) null else runCatching {
+            val body = if (useRegex) query else Regex.escape(query)
+            Regex(if (wholeWord) "\\b(?:$body)\\b" else body, if (matchCase) emptySet() else setOf(RegexOption.IGNORE_CASE))
+        }.getOrNull()
+    }
+    val matches: List<IntRange> = remember(finder, text) {
+        if (finder == null) emptyList() else runCatching { finder.findAll(text).map { it.range }.filter { !it.isEmpty() }.toList() }.getOrDefault(emptyList())
+    }
+    val current = if (matches.isEmpty()) 0 else matchIndex.coerceIn(0, matches.size - 1)
+    val findTransformation = remember(matches, current, scheme) {
+        VisualTransformation { t ->
+            TransformedText(
+                buildAnnotatedString {
+                    append(highlightShell(t.text, scheme))
+                    matches.forEachIndexed { i, r ->
+                        if (r.last < t.text.length) addStyle(SpanStyle(background = scheme.primary.copy(alpha = if (i == current) 0.55f else 0.25f)), r.first, r.last + 1)
+                    }
+                },
+                OffsetMapping.Identity,
+            )
         }
     }
-    fun goTo(i: Int) {
+    fun select(i: Int) {
         if (matches.isEmpty()) return
         val idx = ((i % matches.size) + matches.size) % matches.size
         matchIndex = idx
-        val start = matches[idx]
-        editor.onChange(editor.value.copy(selection = TextRange(start, start + query.length)))
-        runCatching { fieldFocus.requestFocus() }
+        val r = matches[idx]
+        editor.onChange(editor.value.copy(selection = TextRange(r.first, r.last + 1)))
+        layout?.let { l -> scope.launch { scroll.animateScrollTo(l.getLineTop(l.getLineForOffset(r.first.coerceAtMost(text.length))).roundToInt()) } }
+    }
+    fun replaceCurrent() {
+        val f = finder ?: return
+        val r = matches.getOrNull(current) ?: return
+        val rep = runCatching { if (useRegex) f.replace(text.substring(r.first, r.last + 1), replaceText) else replaceText }.getOrNull() ?: return
+        editor.set(TextFieldValue(text.replaceRange(r.first, r.last + 1, rep), TextRange(r.first + rep.length)))
+    }
+    fun replaceAll() {
+        val f = finder ?: return
+        if (matches.isEmpty()) return
+        val out = runCatching { f.replace(text, if (useRegex) replaceText else Regex.escapeReplacement(replaceText)) }.getOrNull() ?: return
+        editor.set(TextFieldValue(out, TextRange(out.length)))
     }
     val (line, col) = lineAndColumn(text, value.selection.start)
+
     CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
         Dialog(
             onDismissRequest = onClose,
             properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false),
         ) {
-            Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.surface) {
-                Scaffold(
-                    modifier = Modifier.systemBarsPadding().imePadding(),
-                    containerColor = MaterialTheme.colorScheme.surface,
-                    topBar = {
-                        TopAppBar(
-                            title = {
-                                Column {
-                                    Text(stringResource(R.string.shell_command), style = MaterialTheme.typography.titleMedium, maxLines = 1)
-                                    Text("Ln $line, Col $col", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
-                                }
-                            },
-                            navigationIcon = {
-                                IconButton(onClick = onClose) { Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = stringResource(R.string.common_close)) }
-                            },
-                            actions = {
-                                val noFocus = Modifier.focusProperties { canFocus = false }
-                                IconButton(onClick = { editor.undo() }, enabled = editor.canUndo, modifier = noFocus) {
-                                    Icon(Icons.AutoMirrored.Rounded.Undo, contentDescription = stringResource(R.string.shell_undo))
-                                }
-                                IconButton(onClick = { editor.redo() }, enabled = editor.canRedo, modifier = noFocus) {
-                                    Icon(Icons.AutoMirrored.Rounded.Redo, contentDescription = stringResource(R.string.shell_redo))
-                                }
-                                if (testRunning) {
-                                    IconButton(onClick = onStop, modifier = noFocus) { Icon(Icons.Rounded.Stop, contentDescription = stringResource(R.string.common_stop), tint = MaterialTheme.colorScheme.primary) }
-                                } else {
-                                    IconButton(onClick = onRun, enabled = canRun, modifier = noFocus) {
-                                        Icon(Icons.Rounded.PlayArrow, contentDescription = stringResource(R.string.shell_test_run), tint = if (canRun) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f))
-                                    }
-                                }
-                                IconButton(onClick = onClose, modifier = noFocus) { Icon(Icons.Rounded.Check, contentDescription = stringResource(R.string.common_done)) }
-                                Box {
-                                    IconButton(onClick = { showSnippets = false; menuOpen = true }, modifier = noFocus) {
-                                        Icon(Icons.Rounded.MoreVert, contentDescription = stringResource(R.string.shell_more))
-                                    }
-                                    DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
-                                        if (showSnippets) {
-                                            SHELL_SNIPPETS.forEach { sn ->
-                                                val label = stringResource(sn.label)
-                                                DropdownMenuItem(text = { Text(label) }, onClick = { menuOpen = false; onSnippet(label, sn.command) })
-                                            }
-                                        } else {
-                                            DropdownMenuItem(text = { Text(stringResource(R.string.shell_find)) }, onClick = { menuOpen = false; findOpen = true })
-                                            DropdownMenuItem(text = { Text(stringResource(R.string.shell_tool_snippets)) }, onClick = { showSnippets = true })
-                                            DropdownMenuItem(text = { Text(stringResource(R.string.shell_tool_app)) }, onClick = { menuOpen = false; onPickApp() })
-                                            DropdownMenuItem(text = { Text(stringResource(R.string.shell_tool_paste)) }, onClick = { menuOpen = false; onPaste() })
-                                            DropdownMenuItem(text = { Text(stringResource(R.string.common_clear)) }, enabled = text.isNotEmpty(), onClick = { menuOpen = false; onClear() })
-                                        }
-                                    }
-                                }
-                            },
-                        )
-                    },
-                    bottomBar = {
-                        Column {
-                            if (testRunning || testOutput != null) {
-                                Surface(color = MaterialTheme.colorScheme.surfaceContainer, modifier = Modifier.fillMaxWidth()) {
-                                    Column(Modifier.padding(horizontal = 16.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                                        testStatus()
-                                        if (!testOutput.isNullOrEmpty()) TestOutputPanel(testOutput, testRunning, maxHeight = 120.dp)
-                                    }
+            Surface(Modifier.fillMaxSize(), color = scheme.surface) {
+                Column(Modifier.fillMaxSize().systemBarsPadding().imePadding()) {
+                    // ── Top row ──
+                        Row(Modifier.fillMaxWidth().height(56.dp).padding(horizontal = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                            IconButton(onClick = onClose, modifier = Modifier.size(40.dp)) {
+                                Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = stringResource(R.string.common_close))
+                            }
+                            Column(Modifier.weight(1f).padding(horizontal = 6.dp)) {
+                                Text(stringResource(R.string.shell_command), style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                Text("Ln $line, Col $col", style = MaterialTheme.typography.bodySmall, color = scheme.onSurfaceVariant, maxLines = 1)
+                            }
+                            val noFocus = Modifier.focusProperties { canFocus = false }.size(40.dp)
+                            IconButton(onClick = { editor.undo() }, enabled = editor.canUndo, modifier = noFocus) {
+                                Icon(Icons.AutoMirrored.Rounded.Undo, contentDescription = stringResource(R.string.shell_undo))
+                            }
+                            IconButton(onClick = { editor.redo() }, enabled = editor.canRedo, modifier = noFocus) {
+                                Icon(Icons.AutoMirrored.Rounded.Redo, contentDescription = stringResource(R.string.shell_redo))
+                            }
+                            IconButton(onClick = { findOpen = !findOpen }, modifier = noFocus) {
+                                Icon(Icons.Rounded.Search, contentDescription = stringResource(R.string.shell_find), tint = if (findOpen) scheme.primary else scheme.onSurfaceVariant)
+                            }
+                            if (testRunning) {
+                                IconButton(onClick = onStop, modifier = noFocus) { Icon(Icons.Rounded.Stop, contentDescription = stringResource(R.string.common_stop), tint = scheme.primary) }
+                            } else {
+                                IconButton(onClick = onRun, enabled = canRun, modifier = noFocus) {
+                                    Icon(Icons.Rounded.PlayArrow, contentDescription = stringResource(R.string.shell_test_run), tint = if (canRun) scheme.primary else scheme.onSurface.copy(alpha = 0.38f))
                                 }
                             }
-                            SymbolBar(onInsert)
+                            IconButton(onClick = onClose, modifier = noFocus) { Icon(Icons.Rounded.Check, contentDescription = stringResource(R.string.common_done)) }
                         }
-                    },
-                ) { padding ->
-                    Column(Modifier.padding(padding).fillMaxSize()) {
+                        // ── Search (like the text editor's) ──
                         if (findOpen) {
-                            Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                                OutlinedTextField(
-                                    value = query,
-                                    onValueChange = { query = it; matchIndex = 0 },
-                                    placeholder = { Text(stringResource(R.string.shell_find)) },
-                                    singleLine = true,
-                                    leadingIcon = { Icon(Icons.Rounded.Search, contentDescription = null) },
-                                    keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.None, autoCorrectEnabled = false),
-                                    modifier = Modifier.weight(1f),
-                                )
-                                Text(if (matches.isEmpty()) "0" else "${matchIndex + 1}/${matches.size}", style = MaterialTheme.typography.labelMedium)
-                                IconButton(onClick = { goTo(matchIndex - 1) }, enabled = matches.isNotEmpty()) { Icon(Icons.Rounded.KeyboardArrowUp, contentDescription = stringResource(R.string.shell_find_prev)) }
-                                IconButton(onClick = { goTo(matchIndex + 1) }, enabled = matches.isNotEmpty()) { Icon(Icons.Rounded.KeyboardArrowDown, contentDescription = stringResource(R.string.shell_find_next)) }
-                                IconButton(onClick = { findOpen = false; query = "" }) { Icon(Icons.Rounded.Close, contentDescription = stringResource(R.string.common_close)) }
+                            LaunchedEffect(Unit) { runCatching { queryFocus.requestFocus() } }
+                            Column(Modifier.padding(horizontal = 12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    OutlinedTextField(
+                                        value = query,
+                                        onValueChange = { query = it; matchIndex = 0 },
+                                        singleLine = true,
+                                        isError = query.isNotEmpty() && finder == null,
+                                        trailingIcon = { Text(if (matches.isEmpty()) "0" else "${current + 1}/${matches.size}", style = MaterialTheme.typography.labelMedium) },
+                                        keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.None, autoCorrectEnabled = false),
+                                        modifier = Modifier.weight(1f).focusRequester(queryFocus),
+                                    )
+                                    IconButton(onClick = { select(current - 1) }, enabled = matches.isNotEmpty()) { Icon(Icons.Rounded.KeyboardArrowUp, contentDescription = stringResource(R.string.shell_find_prev)) }
+                                    IconButton(onClick = { select(current + 1) }, enabled = matches.isNotEmpty()) { Icon(Icons.Rounded.KeyboardArrowDown, contentDescription = stringResource(R.string.shell_find_next)) }
+                                    IconButton(onClick = { findOpen = false; query = ""; replaceOpen = false }) { Icon(Icons.Rounded.Close, contentDescription = stringResource(R.string.common_close)) }
+                                }
+                                Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    FilterChip(selected = useRegex, onClick = { useRegex = !useRegex }, label = { Text(stringResource(R.string.shell_find_regex)) })
+                                    FilterChip(selected = matchCase, onClick = { matchCase = !matchCase }, label = { Text(stringResource(R.string.shell_find_case)) })
+                                    FilterChip(selected = wholeWord, onClick = { wholeWord = !wholeWord }, label = { Text(stringResource(R.string.shell_find_word)) })
+                                    FilterChip(selected = replaceOpen, onClick = { replaceOpen = !replaceOpen }, label = { Text(stringResource(R.string.shell_find_replace)) })
+                                }
+                                if (replaceOpen) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        OutlinedTextField(
+                                            value = replaceText,
+                                            onValueChange = { replaceText = it },
+                                            singleLine = true,
+                                            placeholder = { Text(stringResource(R.string.shell_find_replace_with)) },
+                                            keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.None, autoCorrectEnabled = false),
+                                            modifier = Modifier.weight(1f),
+                                        )
+                                        TextButton(onClick = { replaceCurrent() }, enabled = matches.isNotEmpty()) { Text(stringResource(R.string.shell_find_replace)) }
+                                        TextButton(onClick = { replaceAll() }, enabled = matches.isNotEmpty()) { Text(stringResource(R.string.shell_find_replace_all)) }
+                                    }
+                                }
                             }
                         }
-                        // Line numbers sit beside the text and follow its wrapping: each number is placed at the top of
-                        // the first visual line of its own line.
+                        // ── Helpers ──
+                        Row(
+                            Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 12.dp, vertical = 4.dp),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        ) {
+                            Box {
+                                AssistChip(
+                                    onClick = { snippetsOpen = true },
+                                    label = { Text(stringResource(R.string.shell_tool_snippets)) },
+                                    leadingIcon = { Icon(Icons.Rounded.Code, contentDescription = null, modifier = Modifier.size(18.dp)) },
+                                )
+                                DropdownMenu(expanded = snippetsOpen, onDismissRequest = { snippetsOpen = false }) {
+                                    SHELL_SNIPPETS.forEach { sn ->
+                                        val label = stringResource(sn.label)
+                                        DropdownMenuItem(text = { Text(label) }, onClick = { snippetsOpen = false; onSnippet(label, sn.command) })
+                                    }
+                                }
+                            }
+                            AssistChip(
+                                onClick = onPickApp,
+                                label = { Text(stringResource(R.string.shell_tool_app)) },
+                                leadingIcon = { Icon(Icons.Rounded.Apps, contentDescription = null, modifier = Modifier.size(18.dp)) },
+                            )
+                            AssistChip(onClick = { onInsert(ShellParams.PACKAGE) }, label = { Text(ShellParams.PACKAGE) })
+                            AssistChip(
+                                onClick = onPaste,
+                                label = { Text(stringResource(R.string.shell_tool_paste)) },
+                                leadingIcon = { Icon(Icons.Rounded.ContentPaste, contentDescription = null, modifier = Modifier.size(18.dp)) },
+                            )
+                            AssistChip(
+                                onClick = onClear,
+                                enabled = text.isNotEmpty(),
+                                label = { Text(stringResource(R.string.common_clear)) },
+                                leadingIcon = { Icon(Icons.Rounded.ClearAll, contentDescription = null, modifier = Modifier.size(18.dp)) },
+                            )
+                        }
+                        // ── Text with line numbers; as tall as it needs (at least a few lines), then it scrolls ──
+                        val density = LocalDensity.current
+                        val mono = MaterialTheme.typography.bodyMedium.copy(fontFamily = FontFamily.Monospace, textDirection = TextDirection.Ltr, color = scheme.onSurface)
+                        // The line-number column is only as wide as its digits need (1 digit ~ 24.dp, 2 digits ~ 33.dp).
+                        val starts = remember(text) { buildList { add(0); text.forEachIndexed { i, c -> if (c == '\n') add(i + 1) } } }
+                        val gutterWidth = (lineCountDigits(text) * 9 + 15).dp
+                        val textHeight = with(density) { (layout?.size?.height ?: 0).toDp() }
                         BoxWithConstraints(Modifier.weight(1f).fillMaxWidth()) {
-                            val minHeight = maxHeight
-                            val density = LocalDensity.current
-                            val scheme = MaterialTheme.colorScheme
-                            val mono = MaterialTheme.typography.bodyMedium.copy(fontFamily = FontFamily.Monospace, textDirection = TextDirection.Ltr, color = scheme.onSurface)
-                            var layout by remember { mutableStateOf<TextLayoutResult?>(null) }
-                            val scroll = rememberScrollState()
-                            val starts = remember(text) { buildList { add(0); text.forEachIndexed { i, c -> if (c == '\n') add(i + 1) } } }
-                            val textHeight = with(density) { (layout?.size?.height ?: 0).toDp() }
-                            Row(Modifier.fillMaxSize().verticalScroll(scroll)) {
-                                Box(Modifier.width(44.dp).height(maxOf(textHeight, minHeight)).background(scheme.surfaceContainerLow)) {
+                            val minBody = maxHeight
+                            Row(Modifier.fillMaxWidth().verticalScroll(scroll)) {
+                                Box(Modifier.width(gutterWidth).height(maxOf(textHeight, minBody)).background(scheme.surfaceContainerLow)) {
                                     val l = layout
                                     if (l != null) {
                                         starts.forEachIndexed { i, start ->
                                             val top = l.getLineTop(l.getLineForOffset(start.coerceAtMost(text.length)))
                                             Text(
                                                 "${i + 1}",
-                                                style = mono.copy(color = if (i + 1 == line) scheme.primary else scheme.outline),
-                                                modifier = Modifier.align(Alignment.TopEnd).offset { IntOffset(0, top.roundToInt()) }.padding(end = 6.dp),
+                                                style = mono.copy(fontSize = MaterialTheme.typography.bodySmall.fontSize, color = if (i + 1 == line) scheme.primary else scheme.outline),
+                                                modifier = Modifier.align(Alignment.TopEnd).offset { IntOffset(0, top.roundToInt()) }.padding(end = 5.dp),
                                             )
                                         }
                                     }
@@ -528,10 +607,10 @@ internal fun ExpandedCommandEditor(
                                     onValueChange = { editor.onChange(it) },
                                     textStyle = mono,
                                     cursorBrush = SolidColor(scheme.primary),
-                                    visualTransformation = highlight,
+                                    visualTransformation = if (matches.isEmpty()) highlight else findTransformation,
                                     keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.None, autoCorrectEnabled = false),
                                     onTextLayout = { layout = it },
-                                    modifier = Modifier.weight(1f).heightIn(min = minHeight).focusRequester(fieldFocus)
+                                    modifier = Modifier.weight(1f).heightIn(min = minBody).focusRequester(fieldFocus)
                                         .drawBehind {
                                             // Light bar behind the line the cursor is on.
                                             val l = layout ?: return@drawBehind
@@ -539,11 +618,20 @@ internal fun ExpandedCommandEditor(
                                             val top = l.getLineTop(cur)
                                             drawRect(scheme.surfaceContainerHighest.copy(alpha = 0.5f), Offset(0f, top), Size(size.width, l.getLineBottom(cur) - top))
                                         }
-                                        .padding(start = 8.dp, end = 8.dp),
+                                        .padding(start = 6.dp, end = 8.dp),
                                 )
                             }
                         }
-                    }
+                        // ── Result of the last test run ──
+                        if (testRunning || testOutput != null) {
+                            Surface(color = scheme.surfaceContainer, modifier = Modifier.fillMaxWidth()) {
+                                Column(Modifier.padding(horizontal = 16.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                    testStatus()
+                                    if (!testOutput.isNullOrEmpty()) TestOutputPanel(testOutput, testRunning, maxHeight = 96.dp)
+                                }
+                            }
+                        }
+                        SymbolBar(onInsert)
                 }
             }
         }

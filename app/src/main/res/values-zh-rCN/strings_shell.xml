@@ -132,4 +132,10 @@
     <string name="shell_find_next">下一个匹配</string>
     <string name="shell_more">更多</string>
     <string name="shell_command_placeholder">点按以输入命令…</string>
+    <string name="shell_find_regex">正则</string>
+    <string name="shell_find_case">Aa</string>
+    <string name="shell_find_word">整词</string>
+    <string name="shell_find_replace">替换</string>
+    <string name="shell_find_replace_with">替换为</string>
+    <string name="shell_find_replace_all">全部</string>
 </resources>

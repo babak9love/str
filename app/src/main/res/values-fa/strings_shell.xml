@@ -132,4 +132,10 @@
     <string name="shell_find_next">مورد بعدی</string>
     <string name="shell_more">بیشتر</string>
     <string name="shell_command_placeholder">برای نوشتن دستور لمس کنید…</string>
+    <string name="shell_find_regex">Regex</string>
+    <string name="shell_find_case">Aa</string>
+    <string name="shell_find_word">کلمه</string>
+    <string name="shell_find_replace">جایگزینی</string>
+    <string name="shell_find_replace_with">جایگزین با</string>
+    <string name="shell_find_replace_all">همه</string>
 </resources>

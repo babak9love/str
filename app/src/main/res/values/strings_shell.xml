@@ -136,4 +136,10 @@
     <string name="shell_find_next">Next match</string>
     <string name="shell_more">More</string>
     <string name="shell_command_placeholder">Tap to write a command…</string>
+    <string name="shell_find_regex">Regex</string>
+    <string name="shell_find_case">Aa</string>
+    <string name="shell_find_word">Word</string>
+    <string name="shell_find_replace">Replace</string>
+    <string name="shell_find_replace_with">Replace with</string>
+    <string name="shell_find_replace_all">All</string>
 </resources>
