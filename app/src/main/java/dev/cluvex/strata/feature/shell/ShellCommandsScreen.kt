@@ -158,6 +158,8 @@ import kotlinx.coroutines.withContext
 import dev.cluvex.strata.core.shell.ShellBackend
 import dev.cluvex.strata.core.shell.ShellMode
 import dev.cluvex.strata.core.shell.ShellParams
+import dev.cluvex.strata.core.shell.ShellTemplateStore
+import dev.cluvex.strata.core.shell.ShellTemplate
 import dev.cluvex.strata.feature.editor.EditorController
 import dev.cluvex.strata.core.shell.ShellRunner
 import dev.cluvex.strata.ui.expressive.ExpressiveDialog
@@ -929,6 +931,13 @@ private fun EditCommandDialog(
     var pickTest by remember { mutableStateOf(false) }
     var snippetsOpen by remember { mutableStateOf(false) }
     var askDiscard by remember { mutableStateOf(false) }
+    var askDeleteCommand by remember { mutableStateOf(false) }
+    // The user's own templates of the command editor: stored on this device and included in a settings backup.
+    val templateStore = remember { ShellTemplateStore(overlayContext.applicationContext) }
+    var userTemplates by remember { mutableStateOf(templateStore.load()) }
+    var askTemplateName by remember { mutableStateOf(false) }
+    var templateName by remember { mutableStateOf("") }
+    var deleteTemplate by remember { mutableStateOf<ShellTemplate?>(null) }
     // When the name is left empty, the command's first line is used (the same rule the save uses).
     val autoName = remember(command) { command.lineSequence().firstOrNull { it.isNotBlank() }?.trim().orEmpty().take(40) }
     /** Writes [text] at the cursor (replacing any selection) and leaves the cursor after it. */
@@ -1020,6 +1029,53 @@ private fun EditCommandDialog(
             onDismiss = { pickInsert = false },
         )
     }
+    if (askDeleteCommand && onDelete != null) {
+        ExpressiveDialog(
+            onDismissRequest = { askDeleteCommand = false },
+            title = stringResource(R.string.shell_delete_confirm_title, name.ifBlank { autoName }),
+            icon = Icons.Rounded.Delete,
+            confirmButton = { TextButton(onClick = { askDeleteCommand = false; onDelete() }) { Text(stringResource(R.string.common_delete), color = MaterialTheme.colorScheme.error) } },
+            dismissButton = { TextButton(onClick = { askDeleteCommand = false }) { Text(stringResource(R.string.common_cancel)) } },
+        ) {
+            Text(stringResource(R.string.shell_delete_command_text))
+        }
+    }
+    if (askTemplateName) {
+        ExpressiveDialog(
+            onDismissRequest = { askTemplateName = false },
+            title = stringResource(R.string.shell_template_add_title),
+            icon = Icons.Rounded.Edit,
+            confirmButton = {
+                TextButton(
+                    enabled = templateName.isNotBlank(),
+                    onClick = {
+                        userTemplates = templateStore.add(ShellTemplate(templateName, controller.text().ifBlank { command }))
+                        askTemplateName = false
+                    },
+                ) { Text(stringResource(R.string.common_save)) }
+            },
+            dismissButton = { TextButton(onClick = { askTemplateName = false }) { Text(stringResource(R.string.common_cancel)) } },
+        ) {
+            OutlinedTextField(
+                value = templateName,
+                onValueChange = { templateName = it },
+                label = { Text(stringResource(R.string.shell_template_name)) },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth(),
+            )
+        }
+    }
+    deleteTemplate?.let { t ->
+        ExpressiveDialog(
+            onDismissRequest = { deleteTemplate = null },
+            title = stringResource(R.string.shell_delete_confirm_title, t.name),
+            icon = Icons.Rounded.Delete,
+            confirmButton = { TextButton(onClick = { userTemplates = templateStore.remove(t.name); deleteTemplate = null }) { Text(stringResource(R.string.common_delete), color = MaterialTheme.colorScheme.error) } },
+            dismissButton = { TextButton(onClick = { deleteTemplate = null }) { Text(stringResource(R.string.common_cancel)) } },
+        ) {
+            Text(stringResource(R.string.shell_template_delete_text))
+        }
+    }
     if (pickTest) {
         ShellAppPickerDialog(
             title = stringResource(R.string.shell_param_pick_title, name.ifBlank { autoName }),
@@ -1046,6 +1102,16 @@ private fun EditCommandDialog(
             onPickApp = { pickInsert = true },
             onPaste = { clipboard.readText { t -> if (t.isNotEmpty()) insertText(t) } },
             onClear = { controller.replaceWhole("") },
+            userTemplates = userTemplates,
+            onAddTemplate = {
+                if (controller.text().isBlank()) {
+                    android.widget.Toast.makeText(overlayContext, R.string.shell_template_empty, android.widget.Toast.LENGTH_SHORT).show()
+                } else {
+                    templateName = name.ifBlank { autoName }
+                    askTemplateName = true
+                }
+            },
+            onDeleteTemplate = { deleteTemplate = it },
             onClose = { expanded = false },
         )
     }
@@ -1308,9 +1374,15 @@ private fun EditCommandDialog(
                             }
                         }
                     }
-                    if (onDelete != null) {
-                        TextButton(onClick = onDelete, modifier = Modifier.fillMaxWidth()) {
-                            Text(stringResource(R.string.common_delete), color = MaterialTheme.colorScheme.error)
+                    // Cancel leaves without saving anything (it does not ask); Delete asks first.
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                        OutlinedButton(onClick = onDismiss, modifier = Modifier.weight(1f)) {
+                            Text(stringResource(R.string.common_cancel), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        }
+                        if (onDelete != null) {
+                            TextButton(onClick = { askDeleteCommand = true }, modifier = Modifier.weight(1f)) {
+                                Text(stringResource(R.string.common_delete), color = MaterialTheme.colorScheme.error, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            }
                         }
                     }
                     Spacer(Modifier.height(16.dp))

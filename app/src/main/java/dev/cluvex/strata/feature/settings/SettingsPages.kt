@@ -99,6 +99,7 @@ import dev.cluvex.strata.core.media.FolderBadgeStore
 import dev.cluvex.strata.core.shell.ShellCommandStore
 import dev.cluvex.strata.core.shell.ShellTiles
 import dev.cluvex.strata.core.shell.ShellGroupStore
+import dev.cluvex.strata.core.shell.ShellTemplateStore
 import dev.cluvex.strata.core.shell.ShellShortcuts
 import dev.cluvex.strata.core.data.StrataSettings
 import dev.cluvex.strata.core.remote.RemoteConnectionRepository
@@ -592,6 +593,10 @@ fun BackupPage(act: SettingsActions, activeFolder: String, onBack: () -> Unit) {
                 extras.shellGroups?.let { saved ->
                     runCatching { withContext(Dispatchers.IO) { ShellGroupStore(context.applicationContext).addAll(saved) } }
                 }
+                // The user's command templates are merged by name; a failure here never stops the restore.
+                extras.shellTemplates?.let { saved ->
+                    runCatching { withContext(Dispatchers.IO) { ShellTemplateStore(context.applicationContext).merge(saved) } }
+                }
                 applied
             }
                 .fold({ n -> trPlural(R.plurals.settings_restored, n, n) }, { e -> e.message ?: tr(R.string.settings_backup_read_failed) })
@@ -621,7 +626,8 @@ fun BackupPage(act: SettingsActions, activeFolder: String, onBack: () -> Unit) {
                     val result = runCatching {
                         val shellCommands = withContext(Dispatchers.IO) { ShellCommandStore(context.applicationContext).load() }
                         val shellGroups = withContext(Dispatchers.IO) { ShellGroupStore(context.applicationContext).merged(shellCommands) }
-                        val text = SettingsBackup.attach(act.repo.exportBackup(), bookmarkRepo.bookmarks.first(), remoteRepo.connections.first(), FolderBadgeStore.exportEntries(), shellCommands, shellGroups)
+                        val shellTemplates = withContext(Dispatchers.IO) { ShellTemplateStore(context.applicationContext).load() }
+                        val text = SettingsBackup.attach(act.repo.exportBackup(), bookmarkRepo.bookmarks.first(), remoteRepo.connections.first(), FolderBadgeStore.exportEntries(), shellCommands, shellGroups, shellTemplates)
                         withContext(Dispatchers.IO) {
                             target.mkdirs()
                             val file = LocalFileAccess.file(File(target, SettingsBackup.fileName(System.currentTimeMillis())).path)

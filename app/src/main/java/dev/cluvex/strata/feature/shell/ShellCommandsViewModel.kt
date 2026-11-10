@@ -7,6 +7,7 @@ import androidx.lifecycle.viewModelScope
 import dev.cluvex.strata.core.shell.SavedCommand
 import dev.cluvex.strata.core.shell.ShellBackend
 import dev.cluvex.strata.core.shell.ShellCommandStore
+import dev.cluvex.strata.core.shell.ShellTemplateStore
 import dev.cluvex.strata.core.shell.ShellExecutor
 import dev.cluvex.strata.core.shell.ShellLogSource
 import dev.cluvex.strata.core.shell.ShellLogStore
@@ -140,8 +141,10 @@ class ShellCommandsViewModel(app: Application) : AndroidViewModel(app) {
             val groups = _state.value.groups
             val ok = withContext(Dispatchers.IO) {
                 runCatching {
+                    // The user's own templates travel with the commands.
+                    val templates = ShellTemplateStore(getApplication()).load()
                     getApplication<Application>().contentResolver.openOutputStream(uri, "wt")?.use {
-                        it.write(store.encode(commands, groups).toByteArray())
+                        it.write(store.encode(commands, groups, templates).toByteArray())
                     } != null
                 }.getOrDefault(false)
             }
@@ -164,6 +167,10 @@ class ShellCommandsViewModel(app: Application) : AndroidViewModel(app) {
             // Groups from the file that this device doesn't have yet are added at the end, in the file's order;
             // this also brings over groups that hold no commands.
             _state.update { st -> st.copy(groups = st.groups + incoming.groups.filter { it !in st.groups }) }
+            // Templates in the file are merged by name: the same name is replaced, the others here are kept.
+            if (incoming.templates.isNotEmpty()) {
+                withContext(Dispatchers.IO) { runCatching { ShellTemplateStore(getApplication()).merge(incoming.templates) } }
+            }
             var added = 0
             change { list ->
                 added = 0

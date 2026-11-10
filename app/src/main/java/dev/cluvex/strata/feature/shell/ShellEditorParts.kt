@@ -98,6 +98,11 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import dev.cluvex.strata.R
+import androidx.compose.material.icons.rounded.ExpandMore
+import androidx.compose.material.icons.rounded.ExpandLess
+import dev.cluvex.strata.core.shell.ShellTemplate
+import androidx.compose.material.icons.rounded.Delete
+import androidx.compose.material.icons.rounded.Add
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.Dispatchers
 import io.github.rosemoe.sora.langs.textmate.registry.ThemeRegistry
@@ -236,7 +241,13 @@ internal val SHELL_SNIPPET_GROUPS = listOf(
             ShellSnippet(R.string.shell_snip_dark_off, "cmd uimode night no"),
             ShellSnippet(R.string.shell_snip_stay_awake, "settings put global stay_on_while_plugged_in 3"),
             ShellSnippet(R.string.shell_snip_show_touches, "settings put system show_touches 1"),
+            ShellSnippet(R.string.shell_snip_hide_touches, "settings put system show_touches 0"),
+            ShellSnippet(R.string.shell_snip_pointer_on, "settings put system pointer_location 1"),
+            ShellSnippet(R.string.shell_snip_pointer_off, "settings put system pointer_location 0"),
+            ShellSnippet(R.string.shell_snip_density_show, "wm density"),
             ShellSnippet(R.string.shell_snip_density_reset, "wm density reset"),
+            ShellSnippet(R.string.shell_snip_size_show, "wm size"),
+            ShellSnippet(R.string.shell_snip_size_change, "wm size 1080x2400"),
             ShellSnippet(R.string.shell_snip_size_reset, "wm size reset"),
         ),
     ),
@@ -249,6 +260,9 @@ internal val SHELL_SNIPPET_GROUPS = listOf(
             ShellSnippet(R.string.shell_snip_data_off, "svc data disable"),
             ShellSnippet(R.string.shell_snip_airplane_on, "cmd connectivity airplane-mode enable"),
             ShellSnippet(R.string.shell_snip_airplane_off, "cmd connectivity airplane-mode disable"),
+            ShellSnippet(R.string.shell_snip_location_on, "settings put secure location_mode 1"),
+            ShellSnippet(R.string.shell_snip_location_high, "settings put secure location_mode 3"),
+            ShellSnippet(R.string.shell_snip_location_off, "settings put secure location_mode 0"),
             ShellSnippet(R.string.shell_snip_bt_on, "svc bluetooth enable"),
             ShellSnippet(R.string.shell_snip_bt_off, "svc bluetooth disable"),
             ShellSnippet(R.string.shell_snip_nfc_on, "svc nfc enable"),
@@ -259,15 +273,39 @@ internal val SHELL_SNIPPET_GROUPS = listOf(
     ShellSnippetGroup(
         R.string.shell_snip_group_system,
         listOf(
-            ShellSnippet(R.string.shell_snip_screenshot, "screencap -p /sdcard/Pictures/screenshot_\$(date +%Y%m%d_%H%M%S).png"),
+            // Saved in /sdcard itself: the Pictures folder may not exist, which would make the command fail.
+            ShellSnippet(R.string.shell_snip_screenshot, "screencap -p /sdcard/screenshot_\$(date +%Y%m%d_%H%M%S).png"),
+            ShellSnippet(
+                R.string.shell_snip_screenrecord,
+                // The comments explain the options and are pasted into the editor with the command.
+                listOf(
+                    "# --time-limit <seconds> : recording length. Max and default is 180 seconds.",
+                    "# --size <WxH>           : video size. Default is the screen resolution, so a smaller size gives a smaller file.",
+                    "# --bit-rate <bits/sec>  : video quality. Default is 20,000,000; 4-8 million is enough for a lighter file.",
+                    "# --verbose              : print extra information to the output.",
+                    "# --display-id <id>      : record a specific display (for multi-display devices).",
+                    "# --output-format mp4    : output format (newer Android versions only).",
+                    "",
+                    "screenrecord --size 720x1280 --bit-rate 8000000 --time-limit 9 /sdcard/rec_\$(date +%Y-%m-%d_%H-%M-%S).mp4",
+                ).joinToString("\n"),
+            ),
             ShellSnippet(R.string.shell_snip_restart_ui, "killall com.android.systemui"),
+            ShellSnippet(R.string.shell_snip_battery_info, "dumpsys battery"),
             ShellSnippet(R.string.shell_snip_battery_reset, "dumpsys batterystats --reset"),
             ShellSnippet(R.string.shell_snip_doze_on, "dumpsys deviceidle force-idle"),
             ShellSnippet(R.string.shell_snip_doze_off, "dumpsys deviceidle unforce"),
+            ShellSnippet(R.string.shell_snip_battery_fake_5, "dumpsys battery set level 5"),
             ShellSnippet(R.string.shell_snip_battery_fake, "dumpsys battery set level 20"),
+            ShellSnippet(R.string.shell_snip_battery_fake_50, "dumpsys battery set level 50"),
+            ShellSnippet(R.string.shell_snip_battery_unplug, "dumpsys battery unplug"),
+            ShellSnippet(R.string.shell_snip_battery_ac, "dumpsys battery set ac 1"),
+            ShellSnippet(R.string.shell_snip_battery_usb, "dumpsys battery set usb 1"),
             ShellSnippet(R.string.shell_snip_battery_fake_reset, "dumpsys battery reset"),
             ShellSnippet(R.string.shell_snip_logcat_clear, "logcat -c"),
             ShellSnippet(R.string.shell_snip_list_user_apps, "pm list packages -3"),
+            ShellSnippet(R.string.shell_snip_system_apps, "pm list packages -s"),
+            ShellSnippet(R.string.shell_snip_device_model, "getprop ro.product.model"),
+            ShellSnippet(R.string.shell_snip_android_version, "getprop ro.build.version.release"),
             ShellSnippet(R.string.shell_snip_screen_off, "input keyevent 26"),
         ),
     ),
@@ -493,12 +531,17 @@ internal fun ExpandedCommandEditor(
     onPickApp: () -> Unit,
     onPaste: () -> Unit,
     onClear: () -> Unit,
+    userTemplates: List<ShellTemplate>,
+    onAddTemplate: () -> Unit,
+    onDeleteTemplate: (ShellTemplate) -> Unit,
     onClose: () -> Unit,
 ) {
     val scheme = MaterialTheme.colorScheme
     val context = LocalContext.current
     val queryFocus = remember { FocusRequester() }
     var snippetsOpen by remember { mutableStateOf(false) }
+    // Which template groups are unfolded in the templates menu (a group's position; -1 = the user's own templates).
+    var openGroups by remember { mutableStateOf(setOf<Int>()) }
     var findOpen by remember { mutableStateOf(false) }
     var query by remember { mutableStateOf(SearchQuery("")) }
     var replacement by remember { mutableStateOf("") }
@@ -654,21 +697,59 @@ internal fun ExpandedCommandEditor(
                                 label = { Text(stringResource(R.string.shell_tool_snippets)) },
                                 leadingIcon = { Icon(Icons.Rounded.Code, contentDescription = null, modifier = Modifier.size(18.dp)) },
                             )
-                            // The list is long, so the menu has a height limit and scrolls.
+                            // A tree: each group is a row that folds open to show its templates, indented under it. The menu stays
+                            // open while groups are folded and has a height limit, so a long tree scrolls.
+                            val toggle: (Int) -> Unit = { key -> openGroups = if (key in openGroups) openGroups - key else openGroups + key }
+                            val groupRow: @Composable (Int, String, Int) -> Unit = { key, title, count ->
+                                DropdownMenuItem(
+                                    text = {
+                                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                            Text(title, color = scheme.primary, style = MaterialTheme.typography.labelLarge)
+                                            Text("$count", color = scheme.onSurfaceVariant, style = MaterialTheme.typography.labelSmall)
+                                        }
+                                    },
+                                    trailingIcon = { Icon(if (key in openGroups) Icons.Rounded.ExpandLess else Icons.Rounded.ExpandMore, contentDescription = null, tint = scheme.primary) },
+                                    onClick = { toggle(key) },
+                                )
+                            }
                             DropdownMenu(expanded = snippetsOpen, onDismissRequest = { snippetsOpen = false }, modifier = Modifier.heightIn(max = 380.dp)) {
                                 SHELL_SNIPPET_GROUPS.forEachIndexed { gi, group ->
-                                    if (gi > 0) Box(Modifier.fillMaxWidth().height(1.dp).background(scheme.outlineVariant))
-                                    Text(
-                                        stringResource(group.title),
-                                        style = MaterialTheme.typography.labelMedium,
-                                        color = scheme.primary,
-                                        modifier = Modifier.padding(start = 12.dp, end = 12.dp, top = 8.dp, bottom = 4.dp),
-                                    )
-                                    group.snippets.forEach { sn ->
-                                        val label = stringResource(sn.label)
-                                        DropdownMenuItem(text = { Text(label) }, onClick = { snippetsOpen = false; onSnippet(label, sn.command) })
+                                    groupRow(gi, stringResource(group.title), group.snippets.size)
+                                    if (gi in openGroups) {
+                                        group.snippets.forEach { sn ->
+                                            val label = stringResource(sn.label)
+                                            DropdownMenuItem(
+                                                text = { Text(label) },
+                                                modifier = Modifier.padding(start = 16.dp),
+                                                onClick = { snippetsOpen = false; onSnippet(label, sn.command) },
+                                            )
+                                        }
                                     }
                                 }
+                                // The user's own templates form a group of their own, then "add" is the last entry of the list.
+                                if (userTemplates.isNotEmpty()) {
+                                    groupRow(-1, stringResource(R.string.shell_templates_mine), userTemplates.size)
+                                    if (-1 in openGroups) {
+                                        userTemplates.forEach { t ->
+                                            DropdownMenuItem(
+                                                text = { Text(t.name) },
+                                                modifier = Modifier.padding(start = 16.dp),
+                                                onClick = { snippetsOpen = false; onSnippet(t.name, t.command) },
+                                                trailingIcon = {
+                                                    IconButton(onClick = { snippetsOpen = false; onDeleteTemplate(t) }, modifier = Modifier.size(32.dp)) {
+                                                        Icon(Icons.Rounded.Delete, contentDescription = stringResource(R.string.common_delete), modifier = Modifier.size(18.dp))
+                                                    }
+                                                },
+                                            )
+                                        }
+                                    }
+                                }
+                                Box(Modifier.fillMaxWidth().height(1.dp).background(scheme.outlineVariant))
+                                DropdownMenuItem(
+                                    text = { Text(stringResource(R.string.shell_template_add), color = scheme.primary) },
+                                    leadingIcon = { Icon(Icons.Rounded.Add, contentDescription = null, tint = scheme.primary) },
+                                    onClick = { snippetsOpen = false; onAddTemplate() },
+                                )
                             }
                         }
                         AssistChip(

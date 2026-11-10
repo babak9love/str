@@ -8,6 +8,7 @@ import dev.cluvex.strata.core.i18n.tr
 import dev.cluvex.strata.core.media.FolderBadgeEntry
 import dev.cluvex.strata.core.remote.RemoteConnection
 import dev.cluvex.strata.core.shell.SavedCommand
+import dev.cluvex.strata.core.shell.ShellTemplate
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
@@ -58,6 +59,7 @@ object SettingsBackup {
     const val FOLDER_BADGES_KEY = "folderBadges"
     const val SHELL_COMMANDS_KEY = "shellCommands"
     const val SHELL_GROUPS_KEY = "shellGroups"
+    const val SHELL_TEMPLATES_KEY = "shellTemplates"
 
     class Extras(
         val bookmarks: List<Bookmark>?,
@@ -66,6 +68,8 @@ object SettingsBackup {
         val shellCommands: List<SavedCommand>? = null,
         /** Shell group names in display order (includes groups without commands). */
         val shellGroups: List<String>? = null,
+        /** The user's own command templates of the command editor. */
+        val shellTemplates: List<ShellTemplate>? = null,
     )
 
     fun attach(
@@ -75,6 +79,7 @@ object SettingsBackup {
         folderBadges: List<FolderBadgeEntry> = emptyList(),
         shellCommands: List<SavedCommand> = emptyList(),
         shellGroups: List<String> = emptyList(),
+        shellTemplates: List<ShellTemplate> = emptyList(),
     ): String {
         val root = Json.parseToJsonElement(text).jsonObject
         val extended = JsonObject(
@@ -84,6 +89,7 @@ object SettingsBackup {
                 FOLDER_BADGES_KEY to lenient.encodeToJsonElement(folderBadges),
                 SHELL_COMMANDS_KEY to lenient.encodeToJsonElement(shellCommands),
                 SHELL_GROUPS_KEY to lenient.encodeToJsonElement(shellGroups),
+                SHELL_TEMPLATES_KEY to lenient.encodeToJsonElement(shellTemplates),
             ),
         )
         return pretty.encodeToString(JsonObject.serializer(), extended)
@@ -97,6 +103,7 @@ object SettingsBackup {
             folderBadges = root.tolerantList<FolderBadgeEntry>(FOLDER_BADGES_KEY),
             shellCommands = root.tolerantList<SavedCommand>(SHELL_COMMANDS_KEY),
             shellGroups = root.names(SHELL_GROUPS_KEY),
+            shellTemplates = root.tolerantList<ShellTemplate>(SHELL_TEMPLATES_KEY),
         )
     }
 

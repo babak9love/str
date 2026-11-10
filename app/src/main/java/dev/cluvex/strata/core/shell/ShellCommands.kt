@@ -67,7 +67,7 @@ data class ShellResult(
 )
 
 /** Commands plus the group names in display order (including groups that hold no commands). */
-data class ShellBundle(val commands: List<SavedCommand>, val groups: List<String>)
+data class ShellBundle(val commands: List<SavedCommand>, val groups: List<String>, val templates: List<ShellTemplate> = emptyList())
 
 /** Saved commands live in a small JSON file in the app's private storage. */
 class ShellCommandStore(context: Context) {
@@ -96,16 +96,23 @@ class ShellCommandStore(context: Context) {
         return parse(backup) ?: emptyList()
     }
 
-    /** The export file: an indented JSON object with the commands under "shellCommands" and the group order under "shellGroups". */
-    fun encode(commands: List<SavedCommand>, groups: List<String> = emptyList()): String {
+    private val templateSerializer = ListSerializer(ShellTemplate.serializer())
+
+    /**
+     * The export file: an indented JSON object with the commands under "shellCommands", the group order under
+     * "shellGroups" and the user's own command templates under "shellTemplates".
+     */
+    fun encode(commands: List<SavedCommand>, groups: List<String> = emptyList(), templates: List<ShellTemplate> = emptyList()): String {
         val root = mutableMapOf<String, JsonElement>("shellCommands" to json.encodeToJsonElement(serializer, commands))
         if (groups.isNotEmpty()) root["shellGroups"] = JsonArray(groups.map { JsonPrimitive(it) })
+        if (templates.isNotEmpty()) root["shellTemplates"] = json.encodeToJsonElement(templateSerializer, templates)
         return pretty.encodeToString(JsonObject.serializer(), JsonObject(root))
     }
 
     /**
      * Reads an export file: a bare list, or an object with a "shellCommands" list (this export, or a full settings
-     * backup) and, optionally, a "shellGroups" list. Files without groups give an empty group list.
+     * backup) and, optionally, a "shellGroups" list and a "shellTemplates" list. Files without groups or templates
+     * give empty lists.
      */
     fun decodeBundle(text: String): ShellBundle? = runCatching {
         val root = json.parseToJsonElement(text)
@@ -118,7 +125,11 @@ class ShellCommandStore(context: Context) {
             val p = e as? JsonPrimitive
             if (p != null && p.isString) p.content.trim().ifEmpty { null } else null
         }.distinct()
-        ShellBundle(json.decodeFromJsonElement(serializer, list), groups)
+        // One malformed template is skipped instead of dropping the rest.
+        val templates = ((root as? JsonObject)?.get("shellTemplates") as? JsonArray).orEmpty().mapNotNull { e ->
+            runCatching { json.decodeFromJsonElement(ShellTemplate.serializer(), e) }.getOrNull()
+        }
+        ShellBundle(json.decodeFromJsonElement(serializer, list), groups, templates)
     }.getOrNull()
 
     fun decode(text: String): List<SavedCommand>? = decodeBundle(text)?.commands
