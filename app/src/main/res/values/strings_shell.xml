@@ -142,4 +142,6 @@
     <string name="shell_find_replace">Replace</string>
     <string name="shell_find_replace_with">Replace with</string>
     <string name="shell_find_replace_all">All</string>
+    <string name="shell_select_all">Select all</string>
+    <string name="shell_cut">Cut</string>
 </resources>

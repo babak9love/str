@@ -138,4 +138,6 @@
     <string name="shell_find_replace">替换</string>
     <string name="shell_find_replace_with">替换为</string>
     <string name="shell_find_replace_all">全部</string>
+    <string name="shell_select_all">全选</string>
+    <string name="shell_cut">剪切</string>
 </resources>

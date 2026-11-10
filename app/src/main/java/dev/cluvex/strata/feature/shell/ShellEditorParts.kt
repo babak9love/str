@@ -98,6 +98,18 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import dev.cluvex.strata.R
+import androidx.compose.material.icons.rounded.ContentCut
+import androidx.compose.material.icons.rounded.ContentCopy
+import androidx.compose.material.icons.rounded.SelectAll
+import androidx.compose.ui.unit.IntSize
+import androidx.compose.ui.unit.IntRect
+import androidx.compose.ui.window.PopupPositionProvider
+import androidx.compose.ui.window.Popup
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.platform.TextToolbarStatus
+import androidx.compose.ui.platform.TextToolbar
+import androidx.compose.ui.platform.LocalTextToolbar
+import androidx.compose.runtime.MutableState
 import kotlinx.coroutines.launch
 import dev.cluvex.strata.core.shell.ShellParams
 import androidx.compose.ui.graphics.Color
@@ -326,6 +338,7 @@ internal fun CommandBox(
     onRun: () -> Unit,
     onStop: () -> Unit,
     modifier: Modifier = Modifier,
+    header: @Composable RowScope.() -> Unit,
 ) {
     val scheme = MaterialTheme.colorScheme
     val preview = remember(text, scheme) { highlightShell(text, scheme) }
@@ -350,6 +363,8 @@ internal fun CommandBox(
                 modifier = Modifier.fillMaxWidth().clickable(onClick = onOpen).heightIn(min = 112.dp).padding(start = 14.dp, top = 28.dp, end = 72.dp, bottom = 14.dp),
             )
         }
+        // The title sits in the same strip as the Run button, right above the frame, so there is no gap between them.
+        Row(Modifier.align(Alignment.TopStart).height(22.dp), verticalAlignment = Alignment.CenterVertically, content = header)
         Surface(
             onClick = if (running) onStop else onRun,
             enabled = running || runEnabled,
@@ -364,6 +379,62 @@ internal fun CommandBox(
                     contentDescription = stringResource(if (running) R.string.common_stop else R.string.shell_test_run),
                     tint = if (running || runEnabled) scheme.primary else scheme.onSurface.copy(alpha = 0.38f),
                 )
+            }
+        }
+    }
+}
+
+/** What the text field asks its selection menu to offer; a missing action is not offered. */
+private class ToolbarActions(
+    val rect: Rect,
+    val onCopy: (() -> Unit)?,
+    val onPaste: (() -> Unit)?,
+    val onCut: (() -> Unit)?,
+    val onSelectAll: (() -> Unit)?,
+)
+
+/** Replaces the system selection menu: the fields hand their actions here and [SelectionToolbarPopup] draws them. */
+private class CommandTextToolbar(private val shown: MutableState<ToolbarActions?>) : TextToolbar {
+    override val status: TextToolbarStatus
+        get() = if (shown.value != null) TextToolbarStatus.Shown else TextToolbarStatus.Hidden
+
+    override fun showMenu(
+        rect: Rect,
+        onCopyRequested: (() -> Unit)?,
+        onPasteRequested: (() -> Unit)?,
+        onCutRequested: (() -> Unit)?,
+        onSelectAllRequested: (() -> Unit)?,
+    ) {
+        shown.value = ToolbarActions(rect, onCopyRequested, onPasteRequested, onCutRequested, onSelectAllRequested)
+    }
+
+    override fun hide() {
+        shown.value = null
+    }
+}
+
+/** The selection menu as a small floating bar of icons: select all, copy, paste, cut. It sits above the selection, or below it when there is no room. */
+@Composable
+private fun SelectionToolbarPopup(actions: ToolbarActions) {
+    val gap = with(LocalDensity.current) { 8.dp.roundToPx() }
+    val provider = remember(actions.rect, gap) {
+        object : PopupPositionProvider {
+            override fun calculatePosition(anchorBounds: IntRect, windowSize: IntSize, layoutDirection: LayoutDirection, popupContentSize: IntSize): IntOffset {
+                val x = actions.rect.left.roundToInt().coerceIn(0, (windowSize.width - popupContentSize.width).coerceAtLeast(0))
+                val above = actions.rect.top.roundToInt() - popupContentSize.height - gap
+                // Below the selection the handles hang under the text, so leave room for them.
+                val y = if (above >= 0) above else actions.rect.bottom.roundToInt() + gap * 6
+                return IntOffset(x, y)
+            }
+        }
+    }
+    Popup(popupPositionProvider = provider) {
+        Surface(shape = RoundedCornerShape(12.dp), color = MaterialTheme.colorScheme.surfaceContainerHigh, shadowElevation = 6.dp) {
+            Row(Modifier.padding(horizontal = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                actions.onSelectAll?.let { act -> IconButton(onClick = act) { Icon(Icons.Rounded.SelectAll, contentDescription = stringResource(R.string.shell_select_all)) } }
+                actions.onCopy?.let { act -> IconButton(onClick = act) { Icon(Icons.Rounded.ContentCopy, contentDescription = stringResource(R.string.common_copy)) } }
+                actions.onPaste?.let { act -> IconButton(onClick = act) { Icon(Icons.Rounded.ContentPaste, contentDescription = stringResource(R.string.shell_tool_paste)) } }
+                actions.onCut?.let { act -> IconButton(onClick = act) { Icon(Icons.Rounded.ContentCut, contentDescription = stringResource(R.string.shell_cut)) } }
             }
         }
     }
@@ -473,14 +544,23 @@ internal fun ExpandedCommandEditor(
             onDismissRequest = onClose,
             properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false),
         ) {
+            // The text selection menu is drawn by us: select all, copy, paste, cut as icons, like the text editor's.
+            val shownToolbar = remember { mutableStateOf<ToolbarActions?>(null) }
+            val toolbar = remember { CommandTextToolbar(shownToolbar) }
+            CompositionLocalProvider(LocalTextToolbar provides toolbar) {
             Surface(Modifier.fillMaxSize(), color = scheme.surface) {
                 Column(Modifier.fillMaxSize().systemBarsPadding().imePadding()) {
                     // ── Top row ──
-                        Row(Modifier.fillMaxWidth().height(56.dp).padding(horizontal = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                        // 6.dp between every button (each is 40.dp wide with a 24.dp icon), so the icons no longer touch.
+                    Row(
+                        Modifier.fillMaxWidth().height(56.dp).padding(horizontal = 2.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    ) {
                             IconButton(onClick = onClose, modifier = Modifier.size(40.dp)) {
                                 Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = stringResource(R.string.common_close))
                             }
-                            Column(Modifier.weight(1f).padding(horizontal = 6.dp)) {
+                            Column(Modifier.weight(1f)) {
                                 Text(stringResource(R.string.shell_command), style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
                                 Text("Ln $line, Col $col", style = MaterialTheme.typography.bodySmall, color = scheme.onSurfaceVariant, maxLines = 1)
                             }
@@ -505,30 +585,44 @@ internal fun ExpandedCommandEditor(
                         }
                         // ── Search (like the text editor's) ──
                         if (findOpen) {
-                            LaunchedEffect(Unit) { runCatching { queryFocus.requestFocus() } }
+                            // Focus goes back to the search field when the search opens and whenever Replace is switched on or off
+                            // (the field is rebuilt in a new place then, which drops its focus).
+                            LaunchedEffect(replaceOpen) { runCatching { queryFocus.requestFocus() } }
+                            val findField: @Composable (Modifier) -> Unit = { m ->
+                                OutlinedTextField(
+                                    value = query,
+                                    onValueChange = { query = it; matchIndex = 0 },
+                                    singleLine = true,
+                                    isError = query.isNotEmpty() && finder == null,
+                                    placeholder = { Text(stringResource(R.string.shell_find)) },
+                                    trailingIcon = { Text(if (matches.isEmpty()) "0" else "${current + 1}/${matches.size}", style = MaterialTheme.typography.labelMedium) },
+                                    keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.None, autoCorrectEnabled = false),
+                                    modifier = m.focusRequester(queryFocus),
+                                )
+                            }
+                            val navButtons: @Composable () -> Unit = {
+                                IconButton(onClick = { select(current - 1) }, enabled = matches.isNotEmpty()) { Icon(Icons.Rounded.KeyboardArrowUp, contentDescription = stringResource(R.string.shell_find_prev)) }
+                                IconButton(onClick = { select(current + 1) }, enabled = matches.isNotEmpty()) { Icon(Icons.Rounded.KeyboardArrowDown, contentDescription = stringResource(R.string.shell_find_next)) }
+                                IconButton(onClick = { findOpen = false; query = ""; replaceOpen = false }) { Icon(Icons.Rounded.Close, contentDescription = stringResource(R.string.common_close)) }
+                            }
+                            val optionChips: @Composable () -> Unit = {
+                                FilterChip(selected = useRegex, onClick = { useRegex = !useRegex }, label = { Text(stringResource(R.string.shell_find_regex)) })
+                                FilterChip(selected = matchCase, onClick = { matchCase = !matchCase }, label = { Text(stringResource(R.string.shell_find_case)) })
+                                FilterChip(selected = wholeWord, onClick = { wholeWord = !wholeWord }, label = { Text(stringResource(R.string.shell_find_word)) })
+                                FilterChip(selected = replaceOpen, onClick = { replaceOpen = !replaceOpen }, label = { Text(stringResource(R.string.shell_find_replace)) })
+                            }
                             Column(Modifier.padding(horizontal = 12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    OutlinedTextField(
-                                        value = query,
-                                        onValueChange = { query = it; matchIndex = 0 },
-                                        singleLine = true,
-                                        isError = query.isNotEmpty() && finder == null,
-                                        trailingIcon = { Text(if (matches.isEmpty()) "0" else "${current + 1}/${matches.size}", style = MaterialTheme.typography.labelMedium) },
-                                        keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.None, autoCorrectEnabled = false),
-                                        modifier = Modifier.weight(1f).focusRequester(queryFocus),
-                                    )
-                                    IconButton(onClick = { select(current - 1) }, enabled = matches.isNotEmpty()) { Icon(Icons.Rounded.KeyboardArrowUp, contentDescription = stringResource(R.string.shell_find_prev)) }
-                                    IconButton(onClick = { select(current + 1) }, enabled = matches.isNotEmpty()) { Icon(Icons.Rounded.KeyboardArrowDown, contentDescription = stringResource(R.string.shell_find_next)) }
-                                    IconButton(onClick = { findOpen = false; query = ""; replaceOpen = false }) { Icon(Icons.Rounded.Close, contentDescription = stringResource(R.string.common_close)) }
-                                }
-                                Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                    FilterChip(selected = useRegex, onClick = { useRegex = !useRegex }, label = { Text(stringResource(R.string.shell_find_regex)) })
-                                    FilterChip(selected = matchCase, onClick = { matchCase = !matchCase }, label = { Text(stringResource(R.string.shell_find_case)) })
-                                    FilterChip(selected = wholeWord, onClick = { wholeWord = !wholeWord }, label = { Text(stringResource(R.string.shell_find_word)) })
-                                    FilterChip(selected = replaceOpen, onClick = { replaceOpen = !replaceOpen }, label = { Text(stringResource(R.string.shell_find_replace)) })
-                                }
-                                if (replaceOpen) {
+                                if (!replaceOpen) {
+                                    // Search only: the field with the match navigation beside it, the options below.
                                     Row(verticalAlignment = Alignment.CenterVertically) {
+                                        findField(Modifier.weight(1f))
+                                        navButtons()
+                                    }
+                                    Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) { optionChips() }
+                                } else {
+                                    // Replace: the two fields side by side, the options (and the replace actions) below.
+                                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                                        findField(Modifier.weight(1f))
                                         OutlinedTextField(
                                             value = replaceText,
                                             onValueChange = { replaceText = it },
@@ -537,8 +631,14 @@ internal fun ExpandedCommandEditor(
                                             keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.None, autoCorrectEnabled = false),
                                             modifier = Modifier.weight(1f),
                                         )
-                                        TextButton(onClick = { replaceCurrent() }, enabled = matches.isNotEmpty()) { Text(stringResource(R.string.shell_find_replace)) }
-                                        TextButton(onClick = { replaceAll() }, enabled = matches.isNotEmpty()) { Text(stringResource(R.string.shell_find_replace_all)) }
+                                    }
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Row(Modifier.weight(1f).horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                                            optionChips()
+                                            TextButton(onClick = { replaceCurrent() }, enabled = matches.isNotEmpty()) { Text(stringResource(R.string.shell_find_replace)) }
+                                            TextButton(onClick = { replaceAll() }, enabled = matches.isNotEmpty()) { Text(stringResource(R.string.shell_find_replace_all)) }
+                                        }
+                                        navButtons()
                                     }
                                 }
                             }
@@ -633,6 +733,8 @@ internal fun ExpandedCommandEditor(
                         }
                         SymbolBar(onInsert)
                 }
+            }
+            shownToolbar.value?.let { SelectionToolbarPopup(it) }
             }
         }
         LaunchedEffect(Unit) { runCatching { fieldFocus.requestFocus() } }

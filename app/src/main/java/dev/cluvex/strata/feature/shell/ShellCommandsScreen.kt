@@ -42,6 +42,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.rounded.Stop
 import androidx.compose.material.icons.rounded.Fullscreen
 import androidx.compose.material.icons.rounded.ClearAll
@@ -1085,12 +1086,6 @@ private fun EditCommandDialog(
                         modifier = Modifier.fillMaxWidth(),
                     )
                     // The command: a framed preview (tap it to open the editor) with Run on the corner of the frame.
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(stringResource(R.string.shell_command), style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
-                        IconButton(onClick = { showHelp = !showHelp }, modifier = Modifier.size(32.dp)) {
-                            Icon(Icons.Rounded.Info, contentDescription = stringResource(R.string.shell_help), modifier = Modifier.size(18.dp))
-                        }
-                    }
                     if (showHelp) {
                         Column(
                             Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(12.dp)).padding(12.dp),
@@ -1107,6 +1102,14 @@ private fun EditCommandDialog(
                         running = testRunning,
                         onRun = { if (ShellParams.needsPackage(command)) pickTest = true else runTest(command.trim()) },
                         onStop = { testScope.launch { ShellRunner.stopRun(testId, mode) } },
+                        header = {
+                            Text(stringResource(R.string.shell_command), style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
+                            Icon(
+                                Icons.Rounded.Info,
+                                contentDescription = stringResource(R.string.shell_help),
+                                modifier = Modifier.padding(start = 6.dp).size(22.dp).clip(CircleShape).clickable { showHelp = !showHelp }.padding(2.dp),
+                            )
+                        },
                     )
                     TestStatus(testResult, testRunning)
                     if (testOutput != null) TestOutputPanel(testOutput, testRunning)

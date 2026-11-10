@@ -138,4 +138,6 @@
     <string name="shell_find_replace">Заменить</string>
     <string name="shell_find_replace_with">Заменить на</string>
     <string name="shell_find_replace_all">Все</string>
+    <string name="shell_select_all">Выбрать всё</string>
+    <string name="shell_cut">Вырезать</string>
 </resources>

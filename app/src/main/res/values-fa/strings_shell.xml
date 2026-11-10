@@ -138,4 +138,6 @@
     <string name="shell_find_replace">جایگزینی</string>
     <string name="shell_find_replace_with">جایگزین با</string>
     <string name="shell_find_replace_all">همه</string>
+    <string name="shell_select_all">انتخاب همه</string>
+    <string name="shell_cut">برش</string>
 </resources>
