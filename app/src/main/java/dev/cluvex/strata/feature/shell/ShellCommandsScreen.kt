@@ -1175,7 +1175,13 @@ private fun EditCommandDialog(
                             }
                         },
                         actions = {
-                            TextButton(onClick = { askSave = true }, enabled = canSave) { Text(stringResource(R.string.common_save)) }
+                            // A small filled button; it is dim until something changed (and while the command is empty).
+                            Button(
+                                onClick = { askSave = true },
+                                enabled = canSave && dirty,
+                                contentPadding = PaddingValues(horizontal = 18.dp),
+                                modifier = Modifier.padding(end = 8.dp).height(36.dp),
+                            ) { Text(stringResource(R.string.common_save)) }
                         },
                     )
                 },
@@ -1184,15 +1190,54 @@ private fun EditCommandDialog(
                     Modifier.padding(padding).fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 8.dp),
                     verticalArrangement = Arrangement.spacedBy(14.dp),
                 ) {
-                    OutlinedTextField(
-                        value = name,
-                        onValueChange = { name = it },
-                        label = { Text(stringResource(R.string.common_name)) },
-                        placeholder = { if (autoName.isNotEmpty()) Text(autoName, maxLines = 1, overflow = TextOverflow.Ellipsis) },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                    // The command: a framed preview (tap it to open the editor) with Run on the corner of the frame.
+                    // Name and command are cards like the rest of the page: an icon, a title and the value under it.
+                    val nameFocus = remember { androidx.compose.ui.focus.FocusRequester() }
+                    val tName = stringResource(R.string.common_name)
+                    val tCommand = stringResource(R.string.shell_command)
+                    val tHelp = stringResource(R.string.shell_help)
+                    SettingsGroup(tCommand) {
+                        custom(
+                            title = tName,
+                            icon = Icons.Rounded.Edit,
+                        ) {
+                            Box(Modifier.fillMaxWidth().heightIn(min = 24.dp), contentAlignment = Alignment.CenterStart) {
+                                if (name.isEmpty() && autoName.isNotEmpty()) {
+                                    Text(autoName, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                }
+                                androidx.compose.foundation.text.BasicTextField(
+                                    value = name,
+                                    onValueChange = { name = it },
+                                    singleLine = true,
+                                    textStyle = MaterialTheme.typography.bodyMedium.copy(color = MaterialTheme.colorScheme.onSurface),
+                                    cursorBrush = androidx.compose.ui.graphics.SolidColor(MaterialTheme.colorScheme.primary),
+                                    modifier = Modifier.fillMaxWidth().focusRequester(nameFocus),
+                                )
+                            }
+                        }
+                        custom(
+                            icon = Icons.Rounded.Terminal,
+                            headline = {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text(tCommand)
+                                    Icon(
+                                        Icons.Rounded.Info,
+                                        contentDescription = tHelp,
+                                        modifier = Modifier.padding(start = 6.dp).size(20.dp).clip(CircleShape).clickable { showHelp = !showHelp }.padding(1.dp),
+                                    )
+                                }
+                            },
+                            trailing = {
+                                CommandRunButton(
+                                    runEnabled = command.isNotBlank(),
+                                    running = testRunning,
+                                    onRun = { if (ShellParams.needsPackage(command)) pickTest = true else runTest(command.trim()) },
+                                    onStop = { testScope.launch { ShellRunner.stopRun(testId, mode) } },
+                                )
+                            },
+                        ) {
+                            CommandPreview(command, onOpen = { expanded = true })
+                        }
+                    }
                     if (showHelp) {
                         Column(
                             Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(12.dp)).padding(12.dp),
@@ -1202,22 +1247,6 @@ private fun EditCommandDialog(
                             HelpEntry("\u25B6", stringResource(R.string.shell_test_hint))
                         }
                     }
-                    CommandBox(
-                        text = command,
-                        onOpen = { expanded = true },
-                        runEnabled = command.isNotBlank(),
-                        running = testRunning,
-                        onRun = { if (ShellParams.needsPackage(command)) pickTest = true else runTest(command.trim()) },
-                        onStop = { testScope.launch { ShellRunner.stopRun(testId, mode) } },
-                        header = {
-                            Text(stringResource(R.string.shell_command), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
-                            Icon(
-                                Icons.Rounded.Info,
-                                contentDescription = stringResource(R.string.shell_help),
-                                modifier = Modifier.padding(start = 4.dp).size(20.dp).clip(CircleShape).clickable { showHelp = !showHelp }.padding(1.dp),
-                            )
-                        },
-                    )
                     TestStatus(testResult, testRunning)
                     if (testOutput != null) TestOutputPanel(testOutput, testRunning)
 
@@ -1272,7 +1301,7 @@ private fun EditCommandDialog(
                     }
 
                     // ── Result display ──
-                    SettingsGroup(stringResource(R.string.shell_section_result), footer = waitHint) {
+                    SettingsGroup(stringResource(R.string.shell_section_result)) {
                         switch(
                             tShowStatus,
                             showStatus,
@@ -1284,14 +1313,19 @@ private fun EditCommandDialog(
                         )
                         if (showStatus) {
                             custom(title = tStatusWait, icon = Icons.Rounded.AccessTime) {
-                                // Quick picks only (max 20 s, 10 is the default).
-                                Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                    for (n in WAIT_PRESETS) {
-                                        FilterChip(
-                                            selected = waitText.toIntOrNull() == n,
-                                            onClick = { waitText = n.toString() },
-                                            label = { Text(n.toString()) },
-                                        )
+                                // Quick picks only (max 20 s, 10 is the default); the note sits inside the card, under the numbers.
+                                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                                    Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                        for (n in WAIT_PRESETS) {
+                                            FilterChip(
+                                                selected = waitText.toIntOrNull() == n,
+                                                onClick = { waitText = n.toString() },
+                                                label = { Text(n.toString()) },
+                                            )
+                                        }
+                                    }
+                                    if (waitHint != null) {
+                                        Text(waitHint) // plain Text: same style and colour as the other descriptions
                                     }
                                 }
                             }

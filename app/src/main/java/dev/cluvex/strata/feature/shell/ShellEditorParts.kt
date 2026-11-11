@@ -2,7 +2,6 @@ package dev.cluvex.strata.feature.shell
 
 import android.os.SystemClock
 import androidx.annotation.StringRes
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
@@ -435,67 +434,46 @@ internal fun TestOutputPanel(output: String?, running: Boolean, modifier: Modifi
     }
 }
 
-/**
- * The command as it sits on the edit page: a framed, read-only preview with Run on the top edge of the frame.
- * Tapping the frame opens the editor; while a test run is going, the same button stops it.
- */
+/** Round Run / Stop button at the end of the Command card's row. */
 @Composable
-internal fun CommandBox(
-    text: String,
-    onOpen: () -> Unit,
-    runEnabled: Boolean,
-    running: Boolean,
-    onRun: () -> Unit,
-    onStop: () -> Unit,
-    modifier: Modifier = Modifier,
-    header: @Composable RowScope.() -> Unit,
-) {
+internal fun CommandRunButton(runEnabled: Boolean, running: Boolean, onRun: () -> Unit, onStop: () -> Unit) {
     val scheme = MaterialTheme.colorScheme
-    val preview = remember(text, scheme) { highlightShell(text, scheme) }
-    // The frame starts 22.dp down so the Run button, centred on its top edge, stays inside this box and keeps its touch area.
-    Box(modifier.fillMaxWidth()) {
-        Surface(
-            shape = RoundedCornerShape(14.dp),
-            color = scheme.surface,
-            border = BorderStroke(1.5.dp, if (text.isEmpty()) scheme.outline else scheme.primary),
-            modifier = Modifier.fillMaxWidth().padding(top = 22.dp),
-        ) {
-            Text(
-                if (text.isEmpty()) AnnotatedString(stringResource(R.string.shell_command_placeholder)) else preview,
-                style = MaterialTheme.typography.bodyMedium.copy(
-                    fontFamily = FontFamily.Monospace,
-                    textDirection = TextDirection.Ltr,
-                    textAlign = TextAlign.Left,
-                    color = if (text.isEmpty()) scheme.onSurfaceVariant else scheme.onSurface,
-                ),
-                maxLines = 8,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.fillMaxWidth().clickable(onClick = onOpen).heightIn(min = 112.dp).padding(start = 14.dp, top = 28.dp, end = 72.dp, bottom = 14.dp),
+    val active = running || runEnabled
+    Surface(
+        onClick = if (running) onStop else onRun,
+        enabled = active,
+        shape = CircleShape,
+        color = if (active) scheme.primary else scheme.surfaceVariant,
+        modifier = Modifier.size(40.dp),
+    ) {
+        Box(contentAlignment = Alignment.Center) {
+            Icon(
+                if (running) Icons.Rounded.Stop else Icons.Rounded.PlayArrow,
+                contentDescription = stringResource(if (running) R.string.common_stop else R.string.shell_test_run),
+                tint = if (active) scheme.onPrimary else scheme.onSurface.copy(alpha = 0.38f),
             )
         }
-        // The title sits on the top border of the frame, like the label of the Name field: it is centred on the border line
-        // and has the page colour behind it, which cuts a gap into the line.
-        Row(
-            Modifier.align(Alignment.TopStart).padding(start = 12.dp, top = 11.dp).height(22.dp).background(scheme.surface).padding(horizontal = 4.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            content = header,
+    }
+}
+
+/** The command text with shell colouring in a darker rounded box inside the Command card; tap it to open the editor. */
+@Composable
+internal fun CommandPreview(text: String, onOpen: () -> Unit, modifier: Modifier = Modifier) {
+    val scheme = MaterialTheme.colorScheme
+    val preview = remember(text, scheme) { highlightShell(text, scheme) }
+    Surface(shape = RoundedCornerShape(12.dp), color = scheme.surface, modifier = modifier.fillMaxWidth()) {
+        Text(
+            if (text.isEmpty()) AnnotatedString(stringResource(R.string.shell_command_placeholder)) else preview,
+            style = MaterialTheme.typography.bodyMedium.copy(
+                fontFamily = FontFamily.Monospace,
+                textDirection = TextDirection.Ltr,
+                textAlign = TextAlign.Left,
+                color = if (text.isEmpty()) scheme.onSurfaceVariant else scheme.onSurface,
+            ),
+            maxLines = 8,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.fillMaxWidth().clickable(onClick = onOpen).heightIn(min = 88.dp).padding(14.dp),
         )
-        Surface(
-            onClick = if (running) onStop else onRun,
-            enabled = running || runEnabled,
-            shape = CircleShape,
-            color = scheme.secondaryContainer,
-            border = BorderStroke(1.5.dp, if (running || runEnabled) scheme.primary else scheme.outlineVariant),
-            modifier = Modifier.align(Alignment.TopEnd).padding(end = 14.dp).size(44.dp),
-        ) {
-            Box(contentAlignment = Alignment.Center) {
-                Icon(
-                    if (running) Icons.Rounded.Stop else Icons.Rounded.PlayArrow,
-                    contentDescription = stringResource(if (running) R.string.common_stop else R.string.shell_test_run),
-                    tint = if (running || runEnabled) scheme.primary else scheme.onSurface.copy(alpha = 0.38f),
-                )
-            }
-        }
     }
 }
 

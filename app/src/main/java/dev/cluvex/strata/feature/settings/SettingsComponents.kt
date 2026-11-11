@@ -307,12 +307,17 @@ fun SettingsGroupScope.custom(
     tint: Tint = Tint.SECONDARY,
     /** Lets the body start under the icon instead of beside it, for rows of buttons that need the room. */
     wide: Boolean = false,
+    /** Replaces the plain [title] text (e.g. a title with an info button next to it). */
+    headline: (@Composable () -> Unit)? = null,
+    /** Content at the end of the row (e.g. a round action button). */
+    trailing: (@Composable () -> Unit)? = null,
     body: @Composable ColumnScope.() -> Unit,
 ) = item { shapes ->
     SegmentedListItem(
         shapes = shapes,
         colors = settingColors(),
         leadingContent = icon?.let { { SettingIcon(it, tint) } },
+        trailingContent = trailing,
         supportingContent = {
             Column {
                 if (summary != null) Text(summary)
@@ -324,7 +329,7 @@ fun SettingsGroupScope.custom(
                 )
             }
         },
-    ) { if (title != null) Text(title) }
+    ) { if (headline != null) headline() else if (title != null) Text(title) }
 }
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
