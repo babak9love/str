@@ -266,6 +266,7 @@ internal val SHELL_SNIPPET_GROUPS = listOf(
             ShellSnippet(R.string.shell_snip_bt_on, "svc bluetooth enable"),
             ShellSnippet(R.string.shell_snip_bt_off, "svc bluetooth disable"),
             ShellSnippet(R.string.shell_snip_nfc_on, "svc nfc enable"),
+            ShellSnippet(R.string.shell_snip_nfc_off, "svc nfc disable"),
             ShellSnippet(R.string.shell_snip_dnd_on, "cmd notification set_dnd priority"),
             ShellSnippet(R.string.shell_snip_dnd_off, "cmd notification set_dnd off"),
         ),

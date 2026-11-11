@@ -204,4 +204,6 @@
     <string name="shell_snip_android_version">نسخه‌ی اندروید</string>
     <string name="shell_snip_size_show">نمایش اندازه‌ی نمایشگر</string>
     <string name="shell_snip_density_show">نمایش تراکم نمایشگر</string>
+    <string name="shell_snip_nfc_off">خاموش کردن NFC</string>
+    <string name="shell_section_actions">کارها</string>
 </resources>

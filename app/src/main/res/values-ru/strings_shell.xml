@@ -204,4 +204,6 @@
     <string name="shell_snip_android_version">Версия Android</string>
     <string name="shell_snip_size_show">Показать размер экрана</string>
     <string name="shell_snip_density_show">Показать плотность экрана</string>
+    <string name="shell_snip_nfc_off">Выключить NFC</string>
+    <string name="shell_section_actions">Действия</string>
 </resources>

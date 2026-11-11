@@ -208,4 +208,6 @@
     <string name="shell_snip_android_version">Android version</string>
     <string name="shell_snip_size_show">Show display size</string>
     <string name="shell_snip_density_show">Show display density</string>
+    <string name="shell_snip_nfc_off">NFC off</string>
+    <string name="shell_section_actions">Actions</string>
 </resources>

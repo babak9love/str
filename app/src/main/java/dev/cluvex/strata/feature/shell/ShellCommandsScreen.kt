@@ -42,6 +42,25 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.material.icons.rounded.DashboardCustomize
+import androidx.compose.material.icons.rounded.Shortcut
+import androidx.compose.material.icons.rounded.Folder
+import androidx.compose.material.icons.rounded.AccessTime
+import androidx.compose.material.icons.rounded.Visibility
+import androidx.compose.material.icons.rounded.VerifiedUser
+import androidx.compose.material.icons.rounded.Timer
+import androidx.compose.material.icons.rounded.Schedule
+import dev.cluvex.strata.feature.settings.switch
+import dev.cluvex.strata.feature.settings.pick
+import dev.cluvex.strata.feature.settings.link
+import dev.cluvex.strata.feature.settings.custom
+import dev.cluvex.strata.feature.settings.choice
+import dev.cluvex.strata.feature.settings.Tint
+import dev.cluvex.strata.feature.settings.SettingsGroup
+import androidx.compose.ui.graphics.Color
+import androidx.compose.material.icons.rounded.ContentCopy
+import androidx.compose.material.icons.rounded.Home
+import androidx.compose.material3.Button
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.rounded.Stop
 import androidx.compose.material.icons.rounded.Fullscreen
@@ -1188,109 +1207,86 @@ private fun EditCommandDialog(
                     TestStatus(testResult, testRunning)
                     if (testOutput != null) TestOutputPanel(testOutput, testRunning)
 
-                    // ── Run ────────────────────────────────────────────────────────────────────────────────────
-                    SectionTitle(stringResource(R.string.shell_section_run))
-                    Text(stringResource(R.string.shell_run_with), style = MaterialTheme.typography.labelLarge)
-                    Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        ShellMode.entries.forEach { m ->
-                            FilterChip(
-                                selected = mode == m,
-                                onClick = { mode = m },
-                                label = {
-                                    Text(
-                                        stringResource(
-                                            when (m) {
-                                                ShellMode.AUTO -> R.string.shell_mode_auto
-                                                ShellMode.SHIZUKU -> R.string.shell_via_shizuku
-                                                ShellMode.ROOT -> R.string.shell_via_root
-                                            },
-                                        ),
-                                    )
-                                },
-                            )
-                        }
-                    }
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        Column(Modifier.weight(1f)) {
-                            Text(stringResource(R.string.shell_detached))
-                            Text(
-                                stringResource(R.string.shell_detached_hint),
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                        }
-                        Switch(checked = detached, onCheckedChange = { detached = it })
-                    }
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        Text(stringResource(R.string.shell_timeout), modifier = Modifier.weight(1f))
-                        Box {
-                            var menuOpen by remember { mutableStateOf(false) }
-                            OutlinedButton(onClick = { menuOpen = true }) {
-                                Text(timeoutLabel(timeoutSec))
-                                Icon(Icons.Rounded.ArrowDropDown, contentDescription = null)
-                            }
-                            DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
-                                (listOf(ShellRunner.NO_TIMEOUT) + TIMEOUT_CHOICES).forEach { sec ->
-                                    DropdownMenuItem(
-                                        text = { Text(timeoutLabel(sec)) },
-                                        onClick = { timeoutSec = sec; menuOpen = false },
-                                    )
-                                }
-                            }
-                        }
-                    }
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        Text(stringResource(R.string.shell_confirm_switch), modifier = Modifier.weight(1f))
-                        Switch(checked = confirm, onCheckedChange = { confirm = it })
-                    }
-
-                    // ── Result display ─────────────────────────────────────────────────────────────────────────
-                    SectionTitle(stringResource(R.string.shell_section_result))
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        Text(stringResource(R.string.shell_show_status), modifier = Modifier.weight(1f))
-                        Switch(
-                            checked = showStatus,
-                            onCheckedChange = { on ->
-                                showStatus = on
-                                if (on && !ShellStatus.canDrawOverlay(overlayContext)) askOverlay = true
+                    // The options use the same grouped rows as the settings pages: an icon, a title, a short note and the
+                    // control on the row, in rounded groups with a heading.
+                    val timeoutOptions = listOf(ShellRunner.NO_TIMEOUT) + TIMEOUT_CHOICES
+                    val timeoutLabels = timeoutOptions.associateWith { timeoutLabel(it) }
+                    val modeLabels = ShellMode.entries.associateWith { m ->
+                        stringResource(
+                            when (m) {
+                                ShellMode.AUTO -> R.string.shell_mode_auto
+                                ShellMode.SHIZUKU -> R.string.shell_via_shizuku
+                                ShellMode.ROOT -> R.string.shell_via_root
                             },
                         )
                     }
-                    if (showStatus) {
-                        OutlinedTextField(
-                            value = waitText,
-                            onValueChange = { v -> waitText = v.filter { it.isDigit() }.take(3) },
-                            label = { Text(stringResource(R.string.shell_status_wait)) },
-                            // Faint hint inside the box while it is empty, like the search field.
-                            placeholder = { Text("${ShellRunner.MIN_STATUS_WAIT_SEC}–${ShellRunner.MAX_STATUS_WAIT_SEC}") },
-                            singleLine = true,
-                            isError = !waitValid,
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                            modifier = Modifier.fillMaxWidth(),
+                    val tRunWith = stringResource(R.string.shell_run_with)
+                    val tDetached = stringResource(R.string.shell_detached)
+                    val tDetachedHint = stringResource(R.string.shell_detached_hint)
+                    val tTimeout = stringResource(R.string.shell_timeout)
+                    val tConfirm = stringResource(R.string.shell_confirm_switch)
+                    val tShowStatus = stringResource(R.string.shell_show_status)
+                    val tStatusWait = stringResource(R.string.shell_status_wait)
+                    val tGroup = stringResource(R.string.shell_group_title)
+                    val tShortcut = stringResource(R.string.shell_shortcut)
+                    val tTile = stringResource(R.string.shell_tile_setting)
+                    val tPin = stringResource(R.string.shell_pin_home)
+                    val tDuplicate = stringResource(R.string.shell_duplicate)
+                    val tDelete = stringResource(R.string.common_delete)
+                    // The status only waits this long for the result; a command whose limit is longer (or that has none)
+                    // can still be running when the message closes, and then its result is only in the history.
+                    val wait = waitText.toIntOrNull()
+                    val waitHint = if (showStatus && waitValid && wait != null && (timeoutSec <= ShellRunner.NO_TIMEOUT || timeoutSec > wait)) {
+                        stringResource(R.string.shell_status_wait_hint)
+                    } else {
+                        null
+                    }
+                    val shortcutFullNote = if (!shortcut && shortcutsFull) stringResource(R.string.shell_shortcut_full, maxShortcuts) else null
+                    val takenBy = takenTiles[tile]
+                    val tileNote = when {
+                        takenBy != null -> stringResource(R.string.shell_tile_taken, takenBy)
+                        tile != 0 -> stringResource(R.string.shell_tile_hint)
+                        else -> null
+                    }
+
+                    // ── Run ──
+                    SettingsGroup(stringResource(R.string.shell_section_run)) {
+                        choice(tRunWith, ShellMode.entries, mode, { modeLabels.getValue(it) }, { mode = it }, icon = Icons.Rounded.Terminal)
+                        switch(tDetached, detached, { detached = it }, summary = tDetachedHint, icon = Icons.Rounded.Schedule)
+                        pick(tTimeout, timeoutOptions, timeoutSec, { timeoutLabels.getValue(it) }, { timeoutSec = it }, icon = Icons.Rounded.Timer)
+                        switch(tConfirm, confirm, { confirm = it }, icon = Icons.Rounded.VerifiedUser)
+                    }
+
+                    // ── Result display ──
+                    SettingsGroup(stringResource(R.string.shell_section_result), footer = waitHint) {
+                        switch(
+                            tShowStatus,
+                            showStatus,
+                            { on ->
+                                showStatus = on
+                                if (on && !ShellStatus.canDrawOverlay(overlayContext)) askOverlay = true
+                            },
+                            icon = Icons.Rounded.Visibility,
                         )
-                        // The status only waits this long for the result; a command whose limit is longer (or that has
-                        // none) can still be running when the message closes, and then its result is only in the history.
-                        val wait = waitText.toIntOrNull()
-                        if (waitValid && wait != null && (timeoutSec <= ShellRunner.NO_TIMEOUT || timeoutSec > wait)) {
-                            Text(
-                                stringResource(R.string.shell_status_wait_hint),
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
+                        if (showStatus) {
+                            custom(title = tStatusWait, icon = Icons.Rounded.AccessTime) {
+                                OutlinedTextField(
+                                    value = waitText,
+                                    onValueChange = { v -> waitText = v.filter { it.isDigit() }.take(3) },
+                                    // Faint hint inside the box while it is empty, like the search field.
+                                    placeholder = { Text("${ShellRunner.MIN_STATUS_WAIT_SEC}–${ShellRunner.MAX_STATUS_WAIT_SEC}") },
+                                    singleLine = true,
+                                    isError = !waitValid,
+                                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                    modifier = Modifier.fillMaxWidth(),
+                                )
+                            }
                         }
                     }
 
-                    // ── Quick access (folds away; open when the command already uses any of it) ────────────────
-                    Row(
-                        Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).clickable { quickOpen = !quickOpen },
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        SectionTitle(stringResource(R.string.shell_section_quick), Modifier.weight(1f))
-                        Icon(if (quickOpen) Icons.Rounded.ExpandLess else Icons.Rounded.ExpandMore, contentDescription = null)
-                    }
-                    AnimatedVisibility(visible = quickOpen) {
-                        Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                            Text(stringResource(R.string.shell_group_title), style = MaterialTheme.typography.labelLarge)
+                    // ── Quick access ──
+                    SettingsGroup(stringResource(R.string.shell_section_quick)) {
+                        custom(title = tGroup, icon = Icons.Rounded.Folder) {
                             // One horizontally scrollable row: "No group" and "+ New group" stay first, then the groups.
                             val chipsState = rememberLazyListState()
                             LaunchedEffect(group, groups.size) {
@@ -1308,19 +1304,10 @@ private fun EditCommandDialog(
                                     FilterChip(selected = group == g, onClick = { group = g }, label = { Text(g) })
                                 }
                             }
-                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                                Text(stringResource(R.string.shell_shortcut), modifier = Modifier.weight(1f))
-                                // The launcher only shows a few app icon shortcuts; a command that already has one may always turn it off.
-                                Switch(checked = shortcut, onCheckedChange = { shortcut = it }, enabled = shortcut || !shortcutsFull)
-                            }
-                            if (!shortcut && shortcutsFull) {
-                                Text(
-                                    stringResource(R.string.shell_shortcut_full, maxShortcuts),
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                )
-                            }
-                            Text(stringResource(R.string.shell_tile_setting), style = MaterialTheme.typography.labelLarge)
+                        }
+                        // The launcher only shows a few app icon shortcuts; a command that already has one may always turn it off.
+                        switch(tShortcut, shortcut, { shortcut = it }, summary = shortcutFullNote, icon = Icons.Rounded.Shortcut, enabled = shortcut || !shortcutsFull)
+                        custom(title = tTile, summary = tileNote, icon = Icons.Rounded.DashboardCustomize) {
                             Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                 for (n in 1..dev.cluvex.strata.core.shell.ShellTiles.SLOTS) {
                                     val owner = takenTiles[n]
@@ -1342,47 +1329,22 @@ private fun EditCommandDialog(
                                     )
                                 }
                             }
-                            val takenBy = takenTiles[tile]
-                            if (takenBy != null) {
-                                Text(
-                                    stringResource(R.string.shell_tile_taken, takenBy),
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                )
-                            } else if (tile != 0) {
-                                Text(
-                                    stringResource(R.string.shell_tile_hint),
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                )
-                            }
                         }
                     }
 
-                    // ── Actions on an existing command ─────────────────────────────────────────────────────────
-                    if (onPin != null || onDuplicate != null) {
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-                            if (onPin != null) {
-                                OutlinedButton(onClick = onPin, modifier = Modifier.weight(1f)) {
-                                    Text(stringResource(R.string.shell_pin_home), maxLines = 1, overflow = TextOverflow.Ellipsis)
-                                }
-                            }
-                            if (onDuplicate != null) {
-                                OutlinedButton(onClick = onDuplicate, modifier = Modifier.weight(1f)) {
-                                    Text(stringResource(R.string.shell_duplicate), maxLines = 1, overflow = TextOverflow.Ellipsis)
-                                }
-                            }
-                        }
+                    // ── Actions on an existing command: the group is left out when there are none (a new command). Delete asks first. ──
+                    SettingsGroup(stringResource(R.string.shell_section_actions)) {
+                        if (onPin != null) link(tPin, icon = Icons.Rounded.Home, chevron = false) { onPin() }
+                        if (onDuplicate != null) link(tDuplicate, icon = Icons.Rounded.ContentCopy, chevron = false) { onDuplicate() }
+                        if (onDelete != null) link(tDelete, icon = Icons.Rounded.Delete, tint = Tint.ERROR, chevron = false) { askDeleteCommand = true }
                     }
-                    // Cancel leaves without saving anything (it does not ask); Delete asks first.
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-                        OutlinedButton(onClick = onDismiss, modifier = Modifier.weight(1f)) {
+                    // Cancel leaves without saving anything (it does not ask); Save is the same as Save in the top bar.
+                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
+                        OutlinedButton(onClick = onDismiss, modifier = Modifier.weight(1f).height(48.dp)) {
                             Text(stringResource(R.string.common_cancel), maxLines = 1, overflow = TextOverflow.Ellipsis)
                         }
-                        if (onDelete != null) {
-                            TextButton(onClick = { askDeleteCommand = true }, modifier = Modifier.weight(1f)) {
-                                Text(stringResource(R.string.common_delete), color = MaterialTheme.colorScheme.error, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                            }
+                        Button(onClick = { save() }, enabled = canSave, modifier = Modifier.weight(1f).height(48.dp)) {
+                            Text(stringResource(R.string.common_save), maxLines = 1, overflow = TextOverflow.Ellipsis)
                         }
                     }
                     Spacer(Modifier.height(16.dp))

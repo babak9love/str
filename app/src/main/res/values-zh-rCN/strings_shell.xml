@@ -204,4 +204,6 @@
     <string name="shell_snip_android_version">Android 版本</string>
     <string name="shell_snip_size_show">显示屏幕尺寸</string>
     <string name="shell_snip_density_show">显示屏幕密度</string>
+    <string name="shell_snip_nfc_off">关闭 NFC</string>
+    <string name="shell_section_actions">操作</string>
 </resources>
