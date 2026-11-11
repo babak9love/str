@@ -66,8 +66,8 @@ data class ShellResult(
     val durationMs: Long = 0L,
 )
 
-/** Commands plus the category names in display order (including categories that hold no commands). */
-data class ShellBundle(val commands: List<SavedCommand>, val categories: List<String>, val templates: List<ShellTemplate> = emptyList())
+/** Commands plus the categories in display order, with description and colour (including categories that hold no commands). */
+data class ShellBundle(val commands: List<SavedCommand>, val categories: List<ShellCategoryInfo>, val templates: List<ShellTemplate> = emptyList())
 
 /** Saved commands live in a small JSON file in the app's private storage. */
 class ShellCommandStore(context: Context) {
@@ -99,12 +99,12 @@ class ShellCommandStore(context: Context) {
     private val templateSerializer = ListSerializer(ShellTemplate.serializer())
 
     /**
-     * The export file: an indented JSON object with the commands under "shellCommands", the category order under
+     * The export file: an indented JSON object with the commands under "shellCommands", the categories (name, description, colour) under
      * "shellCategories" and the user's own command templates under "shellTemplates".
      */
-    fun encode(commands: List<SavedCommand>, categories: List<String> = emptyList(), templates: List<ShellTemplate> = emptyList()): String {
+    fun encode(commands: List<SavedCommand>, categories: List<ShellCategoryInfo> = emptyList(), templates: List<ShellTemplate> = emptyList()): String {
         val root = mutableMapOf<String, JsonElement>("shellCommands" to json.encodeToJsonElement(serializer, commands))
-        if (categories.isNotEmpty()) root["shellCategories"] = JsonArray(categories.map { JsonPrimitive(it) })
+        if (categories.isNotEmpty()) root["shellCategories"] = json.encodeToJsonElement(ListSerializer(ShellCategoryInfo.serializer()), categories)
         if (templates.isNotEmpty()) root["shellTemplates"] = json.encodeToJsonElement(templateSerializer, templates)
         return pretty.encodeToString(JsonObject.serializer(), JsonObject(root))
     }
@@ -121,10 +121,8 @@ class ShellCommandStore(context: Context) {
             is JsonObject -> root["shellCommands"] as? JsonArray
             else -> null
         } ?: return@runCatching null
-        val categories = ((root as? JsonObject)?.get("shellCategories") as? JsonArray).orEmpty().mapNotNull { e ->
-            val p = e as? JsonPrimitive
-            if (p != null && p.isString) p.content.trim().ifEmpty { null } else null
-        }.distinct()
+        val categories = ((root as? JsonObject)?.get("shellCategories") as? JsonArray).orEmpty()
+            .mapNotNull { ShellCategoryInfo.parse(it) }.distinctBy { it.name }
         // One malformed template is skipped instead of dropping the rest.
         val templates = ((root as? JsonObject)?.get("shellTemplates") as? JsonArray).orEmpty().mapNotNull { e ->
             runCatching { json.decodeFromJsonElement(ShellTemplate.serializer(), e) }.getOrNull()

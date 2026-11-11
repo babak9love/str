@@ -8,7 +8,9 @@ import dev.cluvex.strata.core.i18n.tr
 import dev.cluvex.strata.core.media.FolderBadgeEntry
 import dev.cluvex.strata.core.remote.RemoteConnection
 import dev.cluvex.strata.core.shell.SavedCommand
+import dev.cluvex.strata.core.shell.ShellCategoryInfo
 import dev.cluvex.strata.core.shell.ShellTemplate
+import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
@@ -67,7 +69,7 @@ object SettingsBackup {
         val folderBadges: List<FolderBadgeEntry>? = null,
         val shellCommands: List<SavedCommand>? = null,
         /** Shell category names in display order (includes categories without commands). */
-        val shellCategories: List<String>? = null,
+        val shellCategories: List<ShellCategoryInfo>? = null,
         /** The user's own command templates of the command editor. */
         val shellTemplates: List<ShellTemplate>? = null,
     )
@@ -78,7 +80,7 @@ object SettingsBackup {
         connections: List<RemoteConnection>,
         folderBadges: List<FolderBadgeEntry> = emptyList(),
         shellCommands: List<SavedCommand> = emptyList(),
-        shellCategories: List<String> = emptyList(),
+        shellCategories: List<ShellCategoryInfo> = emptyList(),
         shellTemplates: List<ShellTemplate> = emptyList(),
     ): String {
         val root = Json.parseToJsonElement(text).jsonObject
@@ -89,7 +91,7 @@ object SettingsBackup {
             SHELL_COMMANDS_KEY to lenient.encodeToJsonElement(shellCommands),
         )
         // Like the shell export file: the category order and the templates are only written when there are some.
-        if (shellCategories.isNotEmpty()) added[SHELL_CATEGORIES_KEY] = lenient.encodeToJsonElement(shellCategories)
+        if (shellCategories.isNotEmpty()) added[SHELL_CATEGORIES_KEY] = lenient.encodeToJsonElement(ListSerializer(ShellCategoryInfo.serializer()), shellCategories)
         if (shellTemplates.isNotEmpty()) added[SHELL_TEMPLATES_KEY] = lenient.encodeToJsonElement(shellTemplates)
         val extended = JsonObject(root + added)
         return pretty.encodeToString(JsonObject.serializer(), extended)
@@ -102,16 +104,14 @@ object SettingsBackup {
             connections = root.list<RemoteConnection>(CONNECTIONS_KEY),
             folderBadges = root.tolerantList<FolderBadgeEntry>(FOLDER_BADGES_KEY),
             shellCommands = root.tolerantList<SavedCommand>(SHELL_COMMANDS_KEY),
-            shellCategories = root.names(SHELL_CATEGORIES_KEY),
+            shellCategories = root.categories(SHELL_CATEGORIES_KEY),
             shellTemplates = root.tolerantList<ShellTemplate>(SHELL_TEMPLATES_KEY),
         )
     }
 
-    /** A list of non-blank strings; anything else in the array is skipped. */
-    private fun JsonObject.names(key: String): List<String>? = (this[key] as? JsonArray)?.mapNotNull { el ->
-        val p = el as? JsonPrimitive
-        if (p != null && p.isString) p.content.trim().ifEmpty { null } else null
-    }?.distinct()
+    /** The categories: objects with a name, description and colour; anything else in the array is skipped. */
+    private fun JsonObject.categories(key: String): List<ShellCategoryInfo>? =
+        (this[key] as? JsonArray)?.mapNotNull { ShellCategoryInfo.parse(it) }?.distinctBy { it.name }
 
     /** Like [list], but one malformed entry is skipped instead of dropping the whole list. */
     private inline fun <reified T> JsonObject.tolerantList(key: String): List<T>? =

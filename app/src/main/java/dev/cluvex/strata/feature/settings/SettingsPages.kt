@@ -625,7 +625,7 @@ fun BackupPage(act: SettingsActions, activeFolder: String, onBack: () -> Unit) {
                 scope.launch {
                     val result = runCatching {
                         val shellCommands = withContext(Dispatchers.IO) { ShellCommandStore(context.applicationContext).load() }
-                        val shellCategories = withContext(Dispatchers.IO) { ShellCategoryStore(context.applicationContext).merged(shellCommands) }
+                        val shellCategories = withContext(Dispatchers.IO) { ShellCategoryStore(context.applicationContext).mergedInfo(shellCommands) }
                         val shellTemplates = withContext(Dispatchers.IO) { ShellTemplateStore(context.applicationContext).load() }
                         val text = SettingsBackup.attach(act.repo.exportBackup(), bookmarkRepo.bookmarks.first(), remoteRepo.connections.first(), FolderBadgeStore.exportEntries(), shellCommands, shellCategories, shellTemplates)
                         withContext(Dispatchers.IO) {

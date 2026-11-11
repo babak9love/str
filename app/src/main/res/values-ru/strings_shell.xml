@@ -208,4 +208,9 @@
     <string name="shell_section_actions">Действия</string>
     <string name="shell_save_confirm_title">Сохранить изменения?</string>
     <string name="shell_save_confirm_message">Изменения будут сохранены в этой команде.</string>
+    <string name="shell_category_description">Описание (необязательно)</string>
+    <string name="shell_category_color">Цвет</string>
+    <string name="shell_last_run">Последний запуск: %1$s</string>
+    <string name="shell_today">Сегодня</string>
+    <string name="shell_yesterday">Вчера</string>
 </resources>

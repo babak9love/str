@@ -39,7 +39,6 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.material.icons.rounded.DashboardCustomize
 import androidx.compose.material.icons.rounded.Shortcut
 import androidx.compose.material.icons.rounded.Folder
@@ -49,14 +48,21 @@ import androidx.compose.material.icons.rounded.VerifiedUser
 import androidx.compose.material.icons.rounded.Timer
 import androidx.compose.material.icons.rounded.Schedule
 import dev.cluvex.strata.feature.settings.switch
-import dev.cluvex.strata.feature.settings.pick
 import dev.cluvex.strata.feature.settings.link
 import dev.cluvex.strata.feature.settings.custom
 import dev.cluvex.strata.feature.settings.choice
 import dev.cluvex.strata.feature.settings.Tint
+import dev.cluvex.strata.feature.settings.ConnectedChoice
 import dev.cluvex.strata.feature.settings.ScrollableConnectedChoice
 import dev.cluvex.strata.feature.settings.SettingsGroup
+import androidx.compose.ui.graphics.Brush
+import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
+import androidx.compose.foundation.layout.IntrinsicSize
+import androidx.compose.foundation.layout.fillMaxHeight
+import dev.cluvex.strata.core.shell.ShellCategoryInfo
+import dev.cluvex.strata.feature.color.ColorPickerDialog
 import androidx.compose.material.icons.rounded.ContentCopy
 import androidx.compose.material.icons.rounded.Home
 import androidx.compose.material3.Button
@@ -118,10 +124,8 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.ExtendedFloatingActionButton
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LoadingIndicator
@@ -255,6 +259,8 @@ fun ShellCommandsScreen(onBack: () -> Unit, vm: ShellCommandsViewModel = viewMod
         }
     }
     LaunchedEffect(Unit) { vm.reload() }
+    // Commands can also be started from a shortcut or the tile while the app is away: refresh when it comes back.
+    LifecycleResumeEffect(Unit) { vm.refreshLastRun(); onPauseOrDispose { } }
     val listState = rememberLazyListState()
     // Display rows: each category (header + its commands unless folded), then the commands that are in no category.
     val allRows = remember(ui.commands, ui.categories, ui.collapsed) {
@@ -547,8 +553,11 @@ fun ShellCommandsScreen(onBack: () -> Unit, vm: ShellCommandsViewModel = viewMod
                                 onSwipeLeft = { categoryMenu = row.name },
                                 modifier = Modifier.animateItem(),
                             ) {
+                                val info = ui.categoryInfo[row.name]
                                 CategoryHeader(
                                     name = row.name,
+                                    description = info?.description.orEmpty(),
+                                    color = Color(info?.color?.takeIf { it != 0 } ?: ShellCategoryInfo.fallbackColor(row.name)),
                                     count = row.count,
                                     collapsed = row.collapsed,
                                     highlight = hoverCategory == row.name,
@@ -575,6 +584,7 @@ fun ShellCommandsScreen(onBack: () -> Unit, vm: ShellCommandsViewModel = viewMod
                                 ) {
                                     CommandCard(
                                         command = c,
+                                        lastRun = ui.lastRun[c.id] ?: 0L,
                                         running = c.id in ui.runningIds || c.id in ui.backgroundIds || c.id in tracked,
                                         blocked = false,
                                         lifted = lifted,
@@ -630,7 +640,8 @@ fun ShellCommandsScreen(onBack: () -> Unit, vm: ShellCommandsViewModel = viewMod
             // Tile slots that other commands already hold, with the name of the command that holds each.
             takenTiles = ui.commands.filter { it.tile != 0 && it.id != target.command?.id }.associate { it.tile to it.name },
             otherShortcuts = ui.commands.count { it.shortcut && it.id != target.command?.id },
-            onNewCategory = vm::addCategory,
+            usedCategoryColors = ui.categories.map { ui.categoryInfo[it]?.color?.takeIf { c -> c != 0 } ?: ShellCategoryInfo.fallbackColor(it) },
+            onNewCategory = { n, d, c -> vm.addCategory(n, d, c) },
             onSave = { name, command, shortcut, mode, timeoutSec, detached, confirm, showStatus, category, tile, statusWaitSec ->
                 vm.save(target.command?.id, name, command, shortcut, mode, timeoutSec, detached, confirm, showStatus, category, tile, statusWaitSec)
                 editing = null
@@ -725,22 +736,29 @@ fun ShellCommandsScreen(onBack: () -> Unit, vm: ShellCommandsViewModel = viewMod
     }
 
     if (newCategoryDialog) {
-        CategoryNameDialog(
+        // The colour starts as a random one that no other category has; the user can pick another.
+        val used = ui.categories.map { ui.categoryInfo[it]?.color?.takeIf { c -> c != 0 } ?: ShellCategoryInfo.fallbackColor(it) }
+        CategoryDialog(
             title = stringResource(R.string.shell_category_new),
-            initial = "",
+            initialName = "",
+            initialDescription = "",
+            initialColor = remember { ShellCategoryInfo.randomColor(used) },
             confirmText = stringResource(R.string.common_create),
             onDismiss = { newCategoryDialog = false },
-            onConfirm = { vm.addCategory(it); newCategoryDialog = false },
+            onConfirm = { n, d, c -> vm.addCategory(n, d, c); newCategoryDialog = false },
         )
     }
     categoryMenu?.let { g ->
         val position = ui.categories.indexOf(g)
-        CategoryNameDialog(
+        val info = ui.categoryInfo[g]
+        CategoryDialog(
             title = stringResource(R.string.shell_category_edit),
-            initial = g,
+            initialName = g,
+            initialDescription = info?.description.orEmpty(),
+            initialColor = info?.color?.takeIf { it != 0 } ?: ShellCategoryInfo.fallbackColor(g),
             confirmText = stringResource(R.string.common_save),
             onDismiss = { categoryMenu = null },
-            onConfirm = { vm.renameCategory(g, it); categoryMenu = null },
+            onConfirm = { n, d, c -> vm.updateCategory(g, n, d, c); categoryMenu = null },
             onDelete = { vm.deleteCategory(g); categoryMenu = null },
             onMove = { by -> vm.moveCategory(g, by) },
             canMoveUp = position > 0,
@@ -780,6 +798,8 @@ fun ShellCommandsScreen(onBack: () -> Unit, vm: ShellCommandsViewModel = viewMod
 @Composable
 private fun CommandCard(
     command: SavedCommand,
+    /** Time in ms of the latest run; 0 = never run (or the history was cleared). */
+    lastRun: Long,
     running: Boolean,
     blocked: Boolean,
     lifted: Boolean,
@@ -900,8 +920,32 @@ private fun CommandCard(
                 ),
                 modifier = Modifier.padding(start = 4.dp, end = 8.dp, top = 6.dp),
             )
+            if (!lifted && lastRun > 0L) {
+                Row(Modifier.padding(start = 4.dp, end = 8.dp, top = 6.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Icon(Icons.Rounded.AccessTime, contentDescription = null, tint = colors.onSurfaceVariant, modifier = Modifier.size(14.dp))
+                    Text(
+                        stringResource(R.string.shell_last_run, lastRunText(lastRun)),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = colors.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+            }
         }
     }
+}
+
+/** "Today, 10:24 AM", "Yesterday, 10:24 AM" or the date and time, in the device's own format. */
+@Composable
+private fun lastRunText(time: Long): String {
+    val context = LocalContext.current
+    val day = when {
+        android.text.format.DateUtils.isToday(time) -> stringResource(R.string.shell_today)
+        android.text.format.DateUtils.isToday(time + android.text.format.DateUtils.DAY_IN_MILLIS) -> stringResource(R.string.shell_yesterday)
+        else -> android.text.format.DateFormat.getMediumDateFormat(context).format(java.util.Date(time))
+    }
+    return day + ", " + android.text.format.DateFormat.getTimeFormat(context).format(java.util.Date(time))
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -912,7 +956,9 @@ private fun EditCommandDialog(
     takenTiles: Map<Int, String>,
     /** How many other commands already sit in the app icon menu. */
     otherShortcuts: Int,
-    onNewCategory: (String) -> Unit,
+    /** Colours the existing categories have, so a new category's random colour is a different one. */
+    usedCategoryColors: List<Int>,
+    onNewCategory: (name: String, description: String, color: Int) -> Unit,
     onSave: (name: String, command: String, shortcut: Boolean, mode: ShellMode, timeoutSec: Int, detached: Boolean, confirm: Boolean, showStatus: Boolean, category: String, tile: Int, statusWaitSec: Int) -> Unit,
     onDelete: (() -> Unit)?,
     onDuplicate: (() -> Unit)?,
@@ -1018,12 +1064,14 @@ private fun EditCommandDialog(
         }
     }
     if (newCategoryDialog) {
-        CategoryNameDialog(
+        CategoryDialog(
             title = stringResource(R.string.shell_category_new),
-            initial = "",
+            initialName = "",
+            initialDescription = "",
+            initialColor = remember { ShellCategoryInfo.randomColor(usedCategoryColors) },
             confirmText = stringResource(R.string.common_create),
             onDismiss = { newCategoryDialog = false },
-            onConfirm = { onNewCategory(it); category = it.trim(); newCategoryDialog = false },
+            onConfirm = { n, d, c -> onNewCategory(n, d, c); category = n.trim(); newCategoryDialog = false },
         )
     }
     // Closing with unsaved changes asks first.
@@ -1295,7 +1343,13 @@ private fun EditCommandDialog(
                     SettingsGroup(stringResource(R.string.shell_section_run)) {
                         choice(tRunWith, ShellMode.entries, mode, { modeLabels.getValue(it) }, { mode = it }, icon = Icons.Rounded.Terminal)
                         switch(tDetached, detached, { detached = it }, summary = tDetachedHint, icon = Icons.Rounded.Schedule)
-                        pick(tTimeout, timeoutOptions, timeoutSec, { timeoutLabels.getValue(it) }, { timeoutSec = it }, icon = Icons.Rounded.Timer)
+                        custom(title = tTimeout, icon = Icons.Rounded.Timer, wide = true) {
+                            ScrollableConnectedChoice(
+                                labels = timeoutOptions.map { timeoutLabels.getValue(it) },
+                                selected = timeoutOptions.indexOf(timeoutSec),
+                                onSelect = { timeoutSec = timeoutOptions[it] },
+                            )
+                        }
                         switch(tConfirm, confirm, { confirm = it }, icon = Icons.Rounded.VerifiedUser)
                     }
 
@@ -1311,20 +1365,18 @@ private fun EditCommandDialog(
                             icon = Icons.Rounded.Visibility,
                         )
                         if (showStatus) {
-                            custom(title = tStatusWait, icon = Icons.Rounded.AccessTime) {
-                                // Quick picks only (max 20 s, 10 is the default); the note sits inside the card, under the numbers.
+                            custom(title = tStatusWait, icon = Icons.Rounded.AccessTime, wide = true) {
+                                // Quick picks only (max 20 s, 10 is the default); the note sits inside the card, under the buttons.
                                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                                    Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                        for (n in WAIT_PRESETS) {
-                                            FilterChip(
-                                                selected = waitText.toIntOrNull() == n,
-                                                onClick = { waitText = n.toString() },
-                                                label = { Text(n.toString()) },
-                                            )
-                                        }
-                                    }
+                                    ConnectedChoice(
+                                        options = WAIT_PRESETS,
+                                        selected = waitText.toIntOrNull() ?: -1,
+                                        label = { it.toString() },
+                                        onSelect = { waitText = it.toString() },
+                                    )
                                     if (waitHint != null) {
-                                        Text(waitHint) // plain Text: same style and colour as the other descriptions
+                                        // The wide content starts under the icon; the note lines up with the title again.
+                                        Text(waitHint, modifier = Modifier.padding(start = 56.dp, end = 16.dp))
                                     }
                                 }
                             }
@@ -1356,28 +1408,22 @@ private fun EditCommandDialog(
                         }
                         // The launcher only shows a few app icon shortcuts; a command that already has one may always turn it off.
                         switch(tShortcut, shortcut, { shortcut = it }, summary = shortcutFullNote, icon = Icons.Rounded.Shortcut, enabled = shortcut || !shortcutsFull)
-                        custom(title = tTile, summary = tileNote, icon = Icons.Rounded.DashboardCustomize) {
-                            Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                for (n in 1..dev.cluvex.strata.core.shell.ShellTiles.SLOTS) {
+                        custom(title = tTile, summary = tileNote, icon = Icons.Rounded.DashboardCustomize, wide = true) {
+                            val slots = (1..dev.cluvex.strata.core.shell.ShellTiles.SLOTS).toList()
+                            ScrollableConnectedChoice(
+                                labels = slots.map { n ->
                                     val owner = takenTiles[n]
-                                    // Once this command picks the slot, the chip shows this command's name (what the list will show after
+                                    // Once this command picks the slot, the button shows this command's name (what the list will show after
                                     // saving) instead of the name of the command that held it.
                                     val shown = if (tile == n) name.trim().ifEmpty { command.lineSequence().firstOrNull().orEmpty().trim().take(40) }.ifEmpty { null } else owner
-                                    FilterChip(
-                                        selected = tile == n,
-                                        // Tapping the chosen tile again clears the choice (0 = no tile).
-                                        onClick = { tile = if (tile == n) 0 else n },
-                                        // A slot another command already holds is highlighted and shows that command's name.
-                                        label = { Text(if (shown == null) n.toString() else "$n · ${shown.take(10)}${if (shown.length > 10) "…" else ""}") },
-                                        colors = if (owner == null) FilterChipDefaults.filterChipColors() else FilterChipDefaults.filterChipColors(
-                                            containerColor = MaterialTheme.colorScheme.tertiaryContainer,
-                                            labelColor = MaterialTheme.colorScheme.onTertiaryContainer,
-                                            selectedContainerColor = MaterialTheme.colorScheme.tertiary,
-                                            selectedLabelColor = MaterialTheme.colorScheme.onTertiary,
-                                        ),
-                                    )
-                                }
-                            }
+                                    if (shown == null) n.toString() else "$n · ${shown.take(10)}${if (shown.length > 10) "…" else ""}"
+                                },
+                                // Tapping the chosen tile again clears the choice (0 = no tile).
+                                selected = slots.indexOf(tile),
+                                onSelect = { i -> tile = if (tile == slots[i]) 0 else slots[i] },
+                                // A slot another command already holds is highlighted and shows that command's name.
+                                highlighted = slots.mapIndexedNotNull { i, n -> if (takenTiles[n] != null) i else null }.toSet(),
+                            )
                         }
                         // Pinning only exists for a saved command (a new one has no id yet).
                         if (onPin != null) link(tPin, icon = Icons.Rounded.Home, chevron = false) { onPin() }
@@ -1422,11 +1468,16 @@ private sealed interface ShellRow {
     }
 }
 
-/** Header of a category: tap to fold or unfold it, long-press to rename or delete it. */
+/**
+ * Header of a category: a bar and a soft glow in its colour, its name, its description (if it has one), the number of
+ * commands and the fold arrow. Tap to fold or unfold it, long-press to edit or delete it.
+ */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun CategoryHeader(
     name: String,
+    description: String,
+    color: Color,
     count: Int,
     collapsed: Boolean,
     onToggle: () -> Unit,
@@ -1435,48 +1486,64 @@ private fun CategoryHeader(
     highlight: Boolean = false,
 ) {
     val colors = MaterialTheme.colorScheme
+    val shape = RoundedCornerShape(16.dp)
     Surface(
-        shape = RoundedCornerShape(16.dp),
+        shape = shape,
         color = if (highlight) colors.primaryContainer else colors.surfaceContainerHigh,
         contentColor = if (highlight) colors.onPrimaryContainer else colors.onSurface,
-        modifier = modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).combinedClickable(onClick = onToggle, onLongClick = onMenu),
+        modifier = modifier.fillMaxWidth().clip(shape).combinedClickable(onClick = onToggle, onLongClick = onMenu),
     ) {
-        Row(
-            Modifier.heightIn(min = 52.dp).padding(horizontal = 16.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
-        ) {
-            Text(name, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
-            Surface(shape = RoundedCornerShape(10.dp), color = colors.primaryContainer, contentColor = colors.onPrimaryContainer) {
-                Text(count.toString(), style = MaterialTheme.typography.labelMedium, modifier = Modifier.padding(horizontal = 9.dp, vertical = 2.dp))
+        Row(Modifier.height(IntrinsicSize.Min).background(Brush.horizontalGradient(listOf(color.copy(alpha = 0.22f), Color.Transparent)))) {
+            Box(Modifier.width(5.dp).fillMaxHeight().background(color))
+            Row(
+                Modifier.weight(1f).heightIn(min = 52.dp).padding(horizontal = 16.dp, vertical = 10.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                Column(Modifier.weight(1f)) {
+                    Text(name, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    if (description.isNotEmpty()) {
+                        Text(description, style = MaterialTheme.typography.bodySmall, color = colors.onSurfaceVariant, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                    }
+                }
+                Surface(shape = RoundedCornerShape(10.dp), color = color, contentColor = if (color.luminance() > 0.5f) Color.Black else Color.White) {
+                    Text(count.toString(), style = MaterialTheme.typography.labelMedium, modifier = Modifier.padding(horizontal = 9.dp, vertical = 2.dp))
+                }
+                Icon(
+                    if (collapsed) Icons.Rounded.ExpandMore else Icons.Rounded.ExpandLess,
+                    contentDescription = stringResource(if (collapsed) R.string.shell_category_expand else R.string.shell_category_collapse),
+                    tint = color,
+                )
             }
-            Icon(
-                if (collapsed) Icons.Rounded.ExpandMore else Icons.Rounded.ExpandLess,
-                contentDescription = stringResource(if (collapsed) R.string.shell_category_expand else R.string.shell_category_collapse),
-            )
         }
     }
 }
 
+/** New or edit dialog of a category: name, an optional description and a colour (picked with the app's colour picker). */
 @Composable
-private fun CategoryNameDialog(
+private fun CategoryDialog(
     title: String,
-    initial: String,
+    initialName: String,
+    initialDescription: String,
+    initialColor: Int,
     confirmText: String,
     onDismiss: () -> Unit,
-    onConfirm: (String) -> Unit,
+    onConfirm: (name: String, description: String, color: Int) -> Unit,
     onDelete: (() -> Unit)? = null,
     /** Moves the category one place up (-1) or down (1); null for a category that doesn't exist yet. */
     onMove: ((Int) -> Unit)? = null,
     canMoveUp: Boolean = false,
     canMoveDown: Boolean = false,
 ) {
-    var text by remember { mutableStateOf(initial) }
+    var text by remember { mutableStateOf(initialName) }
+    var description by remember { mutableStateOf(initialDescription) }
+    var color by remember { mutableIntStateOf(initialColor) }
+    var pickColor by remember { mutableStateOf(false) }
     ExpressiveDialog(
         onDismissRequest = onDismiss,
         title = title,
         icon = Icons.Rounded.CreateNewFolder,
-        confirmButton = { TextButton(onClick = { onConfirm(text) }, enabled = text.isNotBlank()) { Text(confirmText) } },
+        confirmButton = { TextButton(onClick = { onConfirm(text, description, color) }, enabled = text.isNotBlank()) { Text(confirmText) } },
         dismissButton = {
             if (onDelete != null) TextButton(onClick = onDelete) { Text(stringResource(R.string.shell_category_delete)) }
             TextButton(onClick = onDismiss) { Text(stringResource(R.string.common_cancel)) }
@@ -1490,6 +1557,24 @@ private fun CategoryNameDialog(
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth(),
             )
+            OutlinedTextField(
+                value = description,
+                onValueChange = { description = it },
+                label = { Text(stringResource(R.string.shell_category_description)) },
+                maxLines = 3,
+                modifier = Modifier.fillMaxWidth(),
+            )
+            Surface(
+                onClick = { pickColor = true },
+                shape = RoundedCornerShape(12.dp),
+                color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Row(Modifier.padding(horizontal = 16.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Box(Modifier.size(28.dp).clip(CircleShape).background(Color(color)))
+                    Text(stringResource(R.string.shell_category_color), style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
+                }
+            }
             if (onMove != null) {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     OutlinedButton(onClick = { onMove(-1) }, enabled = canMoveUp, modifier = Modifier.weight(1f)) {
@@ -1505,6 +1590,13 @@ private fun CategoryNameDialog(
                 }
             }
         }
+    }
+    if (pickColor) {
+        ColorPickerDialog(
+            initial = color,
+            onPick = { color = it or 0xFF000000.toInt(); pickColor = false },
+            onDismiss = { pickColor = false },
+        )
     }
 }
 

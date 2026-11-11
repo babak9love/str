@@ -208,4 +208,9 @@
     <string name="shell_section_actions">کارها</string>
     <string name="shell_save_confirm_title">ذخیره تغییرات؟</string>
     <string name="shell_save_confirm_message">تغییرات روی این دستور ذخیره می‌شود.</string>
+    <string name="shell_category_description">توضیحات (اختیاری)</string>
+    <string name="shell_category_color">رنگ</string>
+    <string name="shell_last_run">آخرین اجرا: %1$s</string>
+    <string name="shell_today">امروز</string>
+    <string name="shell_yesterday">دیروز</string>
 </resources>

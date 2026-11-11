@@ -212,4 +212,9 @@
     <string name="shell_section_actions">Actions</string>
     <string name="shell_save_confirm_title">Save changes?</string>
     <string name="shell_save_confirm_message">The changes will be saved to this command.</string>
+    <string name="shell_category_description">Description (optional)</string>
+    <string name="shell_category_color">Color</string>
+    <string name="shell_last_run">Last run: %1$s</string>
+    <string name="shell_today">Today</string>
+    <string name="shell_yesterday">Yesterday</string>
 </resources>

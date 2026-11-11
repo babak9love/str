@@ -5,6 +5,7 @@ import android.net.Uri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import dev.cluvex.strata.core.shell.SavedCommand
+import dev.cluvex.strata.core.shell.ShellCategoryInfo
 import dev.cluvex.strata.core.shell.ShellBackend
 import dev.cluvex.strata.core.shell.ShellCommandStore
 import dev.cluvex.strata.core.shell.ShellTemplateStore
@@ -47,6 +48,10 @@ data class ShellUiState(
     val runs: List<ShellRun> = emptyList(),
     /** Category names in display order (includes categories that have no commands yet). */
     val categories: List<String> = emptyList(),
+    /** Description and colour of the categories that have them (a missing colour is shown as a fixed fallback). */
+    val categoryInfo: Map<String, ShellCategoryInfo> = emptyMap(),
+    /** When each command last ran (command id to time in ms), from the run history: app, shortcut and tile runs. */
+    val lastRun: Map<String, Long> = emptyMap(),
     /** Names of the categories that are currently folded. */
     val collapsed: Set<String> = emptySet(),
 ) {
@@ -58,6 +63,23 @@ class ShellCommandsViewModel(app: Application) : AndroidViewModel(app) {
     private val saveLock = Mutex()
     private val prefs = app.getSharedPreferences("shell_ui", android.content.Context.MODE_PRIVATE)
     private val names = ListSerializer(String.serializer())
+    private val infoSerializer = ListSerializer(ShellCategoryInfo.serializer())
+
+    /** The latest logged run of each command. */
+    private fun loadLastRuns(): Map<String, Long> =
+        ShellLogStore(getApplication<Application>()).load().groupBy { it.commandId }.mapValues { e -> e.value.maxOf { it.time } }
+
+    /** Re-reads when the commands last ran, e.g. after one was started from a shortcut or the quick settings tile. */
+    fun refreshLastRun() {
+        viewModelScope.launch {
+            val runs = withContext(Dispatchers.IO) { runCatching { loadLastRuns() }.getOrDefault(emptyMap()) }
+            _state.update { it.copy(lastRun = runs) }
+        }
+    }
+
+    private fun loadInfo(): Map<String, ShellCategoryInfo> =
+        runCatching { Json.decodeFromString(infoSerializer, prefs.getString("category_info", "[]") ?: "[]") }
+            .getOrDefault(emptyList()).associateBy { it.name }
 
     private fun loadNames(key: String): List<String> =
         runCatching { Json.decodeFromString(names, prefs.getString(key, "[]") ?: "[]") }.getOrDefault(emptyList())
@@ -66,6 +88,7 @@ class ShellCommandsViewModel(app: Application) : AndroidViewModel(app) {
         val st = _state.value
         prefs.edit()
             .putString("categories", Json.encodeToString(names, st.categories))
+            .putString("category_info", Json.encodeToString(infoSerializer, st.categoryInfo.values.filter { it.name in st.categories }))
             .putString("collapsed", Json.encodeToString(names, st.collapsed.toList()))
             .apply()
     }
@@ -82,8 +105,9 @@ class ShellCommandsViewModel(app: Application) : AndroidViewModel(app) {
     init {
         viewModelScope.launch {
             val list = withContext(Dispatchers.IO) { store.load() }
-            _state.update { it.copy(commands = list, categories = mergeCategories(loadNames("categories"), list), collapsed = loadNames("collapsed").toSet(), loading = false) }
+            _state.update { it.copy(commands = list, categories = mergeCategories(loadNames("categories"), list), categoryInfo = loadInfo(), collapsed = loadNames("collapsed").toSet(), loading = false) }
             withContext(Dispatchers.IO) { ShellShortcuts.publish(getApplication<Application>(), list) }
+            refreshLastRun()
         }
     }
 
@@ -91,7 +115,7 @@ class ShellCommandsViewModel(app: Application) : AndroidViewModel(app) {
     fun reload() {
         viewModelScope.launch {
             val list = withContext(Dispatchers.IO) { saveLock.withLock { store.load() } }
-            _state.update { it.copy(commands = list, categories = mergeCategories(loadNames("categories"), list), loading = false) }
+            _state.update { it.copy(commands = list, categories = mergeCategories(loadNames("categories"), list), categoryInfo = loadInfo(), loading = false) }
             scanBackground(list)
         }
     }
@@ -138,7 +162,7 @@ class ShellCommandsViewModel(app: Application) : AndroidViewModel(app) {
     fun exportTo(uri: Uri, onDone: (Int) -> Unit) {
         viewModelScope.launch {
             val commands = _state.value.commands
-            val categories = _state.value.categories
+            val categories = categoryList(_state.value)
             val ok = withContext(Dispatchers.IO) {
                 runCatching {
                     // The user's own templates travel with the commands.
@@ -166,7 +190,13 @@ class ShellCommandsViewModel(app: Application) : AndroidViewModel(app) {
             }
             // Categories from the file that this device doesn't have yet are added at the end, in the file's order;
             // this also brings over categories that hold no commands.
-            _state.update { st -> st.copy(categories = st.categories + incoming.categories.filter { it !in st.categories }) }
+            _state.update { st ->
+                val fresh = incoming.categories.filter { it.name !in st.categories }
+                val info = st.categoryInfo.toMutableMap()
+                for (c in fresh) info[c.name] = c.copy(color = if (c.color != 0) c.color else ShellCategoryInfo.randomColor(info.values.map { it.color }))
+                st.copy(categories = st.categories + fresh.map { it.name }, categoryInfo = info)
+            }
+            persistCategories()
             // Templates in the file are merged by name: the same name is replaced, the others here are kept.
             if (incoming.templates.isNotEmpty()) {
                 withContext(Dispatchers.IO) { runCatching { ShellTemplateStore(getApplication()).merge(incoming.templates) } }
@@ -213,28 +243,46 @@ class ShellCommandsViewModel(app: Application) : AndroidViewModel(app) {
     /** Saves the current order and refreshes the launcher shortcuts, whose order follows the list. */
     fun commitOrder() = change { it }
 
-    fun addCategory(name: String) {
+    /** The categories in display order with description and colour, as written to an export or a backup. */
+    private fun categoryList(st: ShellUiState): List<ShellCategoryInfo> = st.categories.map { n ->
+        val i = st.categoryInfo[n] ?: ShellCategoryInfo(n)
+        i.copy(color = if (i.color != 0) i.color else ShellCategoryInfo.fallbackColor(n))
+    }
+
+    /** Adds a category; a [color] of 0 means the user chose none, so one is picked at random. */
+    fun addCategory(name: String, description: String = "", color: Int = 0) {
         val n = name.trim()
         if (n.isEmpty() || n in _state.value.categories) return
-        _state.update { it.copy(categories = it.categories + n) }
+        _state.update { st ->
+            val c = if (color != 0) color else ShellCategoryInfo.randomColor(st.categories.map { colorOf(st, it) })
+            st.copy(categories = st.categories + n, categoryInfo = st.categoryInfo + (n to ShellCategoryInfo(n, description.trim(), c)))
+        }
         persistCategories()
     }
 
-    fun renameCategory(old: String, new: String) {
-        val n = new.trim()
-        if (n.isEmpty() || n == old || n in _state.value.categories) return
+    /** The colour a category is shown in: its own, or the fixed fallback for one that never got a colour. */
+    private fun colorOf(st: ShellUiState, name: String): Int =
+        st.categoryInfo[name]?.color?.takeIf { it != 0 } ?: ShellCategoryInfo.fallbackColor(name)
+
+    /** Changes a category's name, description and colour; its commands follow a rename. */
+    fun updateCategory(old: String, name: String, description: String, color: Int) {
+        val n = name.trim()
+        if (n.isEmpty() || old !in _state.value.categories) return
+        val renamed = n != old
+        if (renamed && n in _state.value.categories) return
         _state.update { st ->
             st.copy(
                 categories = st.categories.map { if (it == old) n else it },
-                collapsed = if (old in st.collapsed) st.collapsed - old + n else st.collapsed,
+                collapsed = if (renamed && old in st.collapsed) st.collapsed - old + n else st.collapsed,
+                categoryInfo = st.categoryInfo - old + (n to ShellCategoryInfo(n, description.trim(), color)),
             )
         }
-        change { list -> list.map { if (it.category == old) it.copy(category = n) else it } }
+        if (renamed) change { list -> list.map { if (it.category == old) it.copy(category = n) else it } } else persistCategories()
     }
 
     /** Deletes only the category: its commands stay and become uncategorized. */
     fun deleteCategory(name: String) {
-        _state.update { st -> st.copy(categories = st.categories - name, collapsed = st.collapsed - name) }
+        _state.update { st -> st.copy(categories = st.categories - name, collapsed = st.collapsed - name, categoryInfo = st.categoryInfo - name) }
         change { list -> list.map { if (it.category == name) it.copy(category = "") else it } }
     }
 
@@ -331,6 +379,7 @@ class ShellCommandsViewModel(app: Application) : AndroidViewModel(app) {
             // A run whose live view the person closed while it was going is not announced when it ends; it is in the history.
             val silent = !command.detached && silenced.remove(id)
             _state.update { it.copy(runningIds = it.runningIds - id, runs = if (silent) it.runs else it.runs + ShellRun(command, result)) }
+            refreshLastRun()
             val backend = result.backend
             if (command.detached && backend != null && !result.timedOut && result.exitCode == 0) {
                 backgroundBackend[id] = backend

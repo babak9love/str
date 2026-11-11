@@ -208,4 +208,9 @@
     <string name="shell_section_actions">操作</string>
     <string name="shell_save_confirm_title">保存更改？</string>
     <string name="shell_save_confirm_message">更改将保存到此命令。</string>
+    <string name="shell_category_description">描述（可选）</string>
+    <string name="shell_category_color">颜色</string>
+    <string name="shell_last_run">上次运行：%1$s</string>
+    <string name="shell_today">今天</string>
+    <string name="shell_yesterday">昨天</string>
 </resources>
