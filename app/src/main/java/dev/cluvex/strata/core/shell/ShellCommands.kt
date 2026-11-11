@@ -41,8 +41,8 @@ data class SavedCommand(
     val confirm: Boolean = false,
     /** Shows the status of a run (shortcut or tile): a banner over other apps when allowed, else a Toast; off = no message. */
     val showStatus: Boolean = true,
-    /** Name of the group this command is listed under; empty = not in a group. */
-    val group: String = "",
+    /** Name of the category this command is listed under; empty = not in a category. */
+    val category: String = "",
     /** Quick Settings tile (1..[ShellTiles.SLOTS]) that runs this command; 0 = none. Part of exports and backups. */
     val tile: Int = 0,
     /** With [showStatus] on: how many seconds the status waits for the result before it just says "running". */
@@ -66,8 +66,8 @@ data class ShellResult(
     val durationMs: Long = 0L,
 )
 
-/** Commands plus the group names in display order (including groups that hold no commands). */
-data class ShellBundle(val commands: List<SavedCommand>, val groups: List<String>, val templates: List<ShellTemplate> = emptyList())
+/** Commands plus the category names in display order (including categories that hold no commands). */
+data class ShellBundle(val commands: List<SavedCommand>, val categories: List<String>, val templates: List<ShellTemplate> = emptyList())
 
 /** Saved commands live in a small JSON file in the app's private storage. */
 class ShellCommandStore(context: Context) {
@@ -99,19 +99,19 @@ class ShellCommandStore(context: Context) {
     private val templateSerializer = ListSerializer(ShellTemplate.serializer())
 
     /**
-     * The export file: an indented JSON object with the commands under "shellCommands", the group order under
-     * "shellGroups" and the user's own command templates under "shellTemplates".
+     * The export file: an indented JSON object with the commands under "shellCommands", the category order under
+     * "shellCategories" and the user's own command templates under "shellTemplates".
      */
-    fun encode(commands: List<SavedCommand>, groups: List<String> = emptyList(), templates: List<ShellTemplate> = emptyList()): String {
+    fun encode(commands: List<SavedCommand>, categories: List<String> = emptyList(), templates: List<ShellTemplate> = emptyList()): String {
         val root = mutableMapOf<String, JsonElement>("shellCommands" to json.encodeToJsonElement(serializer, commands))
-        if (groups.isNotEmpty()) root["shellGroups"] = JsonArray(groups.map { JsonPrimitive(it) })
+        if (categories.isNotEmpty()) root["shellCategories"] = JsonArray(categories.map { JsonPrimitive(it) })
         if (templates.isNotEmpty()) root["shellTemplates"] = json.encodeToJsonElement(templateSerializer, templates)
         return pretty.encodeToString(JsonObject.serializer(), JsonObject(root))
     }
 
     /**
      * Reads an export file: a bare list, or an object with a "shellCommands" list (this export, or a full settings
-     * backup) and, optionally, a "shellGroups" list and a "shellTemplates" list. Files without groups or templates
+     * backup) and, optionally, a "shellCategories" list and a "shellTemplates" list. Files without categories or templates
      * give empty lists.
      */
     fun decodeBundle(text: String): ShellBundle? = runCatching {
@@ -121,7 +121,7 @@ class ShellCommandStore(context: Context) {
             is JsonObject -> root["shellCommands"] as? JsonArray
             else -> null
         } ?: return@runCatching null
-        val groups = ((root as? JsonObject)?.get("shellGroups") as? JsonArray).orEmpty().mapNotNull { e ->
+        val categories = ((root as? JsonObject)?.get("shellCategories") as? JsonArray).orEmpty().mapNotNull { e ->
             val p = e as? JsonPrimitive
             if (p != null && p.isString) p.content.trim().ifEmpty { null } else null
         }.distinct()
@@ -129,7 +129,7 @@ class ShellCommandStore(context: Context) {
         val templates = ((root as? JsonObject)?.get("shellTemplates") as? JsonArray).orEmpty().mapNotNull { e ->
             runCatching { json.decodeFromJsonElement(ShellTemplate.serializer(), e) }.getOrNull()
         }
-        ShellBundle(json.decodeFromJsonElement(serializer, list), groups, templates)
+        ShellBundle(json.decodeFromJsonElement(serializer, list), categories, templates)
     }.getOrNull()
 
     fun decode(text: String): List<SavedCommand>? = decodeBundle(text)?.commands

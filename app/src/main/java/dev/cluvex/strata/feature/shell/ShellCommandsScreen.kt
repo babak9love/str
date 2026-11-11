@@ -222,15 +222,15 @@ fun ShellCommandsScreen(onBack: () -> Unit, vm: ShellCommandsViewModel = viewMod
     var pickFor by remember { mutableStateOf<SavedCommand?>(null) }
     var menuOpen by remember { mutableStateOf(false) }
     var searching by remember { mutableStateOf(false) }
-    // The + button opens a small menu: a new command or a new group.
+    // The + button opens a small menu: a new command or a new category.
     var fabOpen by remember { mutableStateOf(false) }
     var query by remember { mutableStateOf("") }
-    var newGroupDialog by remember { mutableStateOf(false) }
-    var groupMenu by remember { mutableStateOf<String?>(null) }
+    var newCategoryDialog by remember { mutableStateOf(false) }
+    var categoryMenu by remember { mutableStateOf<String?>(null) }
     var liveId by remember { mutableStateOf<String?>(null) }
     // Swiping a row to the right asks before deleting it; swiping to the left opens its editor.
     var deleteCmd by remember { mutableStateOf<SavedCommand?>(null) }
-    var deleteGroup by remember { mutableStateOf<String?>(null) }
+    var deleteCategory by remember { mutableStateOf<String?>(null) }
     // A background command that is still running, whose log was opened again from its card.
     var backgroundCmd by remember { mutableStateOf<SavedCommand?>(null) }
     // A normal command opens its live output right away; a background one shows its log when it has started.
@@ -257,39 +257,39 @@ fun ShellCommandsScreen(onBack: () -> Unit, vm: ShellCommandsViewModel = viewMod
     }
     LaunchedEffect(Unit) { vm.reload() }
     val listState = rememberLazyListState()
-    // Display rows: each group (header + its commands unless folded), then the commands that are in no group.
-    val allRows = remember(ui.commands, ui.groups, ui.collapsed) {
+    // Display rows: each category (header + its commands unless folded), then the commands that are in no category.
+    val allRows = remember(ui.commands, ui.categories, ui.collapsed) {
         buildList<ShellRow> {
-            for (g in ui.groups) {
-                val items = ui.commands.filter { it.group == g }
+            for (g in ui.categories) {
+                val items = ui.commands.filter { it.category == g }
                 val folded = g in ui.collapsed
-                add(ShellRow.Group(g, items.size, folded))
+                add(ShellRow.Category(g, items.size, folded))
                 if (!folded) items.forEach { add(ShellRow.Cmd(it, nested = true)) }
             }
-            val loose = ui.commands.filter { it.group.isEmpty() }
-            if (ui.groups.isNotEmpty()) add(ShellRow.Label)
+            val loose = ui.commands.filter { it.category.isEmpty() }
+            if (ui.categories.isNotEmpty()) add(ShellRow.Label)
             loose.forEach { add(ShellRow.Cmd(it, nested = false)) }
         }
     }
-    // While something is typed in the search, the list is flat: every command whose name, text or group matches.
+    // While something is typed in the search, the list is flat: every command whose name, text or category matches.
     val q = query.trim()
     val rows: List<ShellRow> = remember(allRows, ui.commands, q) {
         if (q.isEmpty()) {
             allRows
         } else {
             ui.commands
-                .filter { c -> c.name.contains(q, ignoreCase = true) || c.command.contains(q, ignoreCase = true) || c.group.contains(q, ignoreCase = true) }
+                .filter { c -> c.name.contains(q, ignoreCase = true) || c.command.contains(q, ignoreCase = true) || c.category.contains(q, ignoreCase = true) }
                 .map { ShellRow.Cmd(it, nested = false) }
         }
     }
     // The drag handlers live inside pointerInput blocks that are keyed only by the command id, so they keep the
-    // lambdas (and the `rows` list) from the composition in which they were created. Without this, after a group is
-    // folded/unfolded or a command moves, list indexes map to the wrong rows and the wrong (or no) group is targeted.
+    // lambdas (and the `rows` list) from the composition in which they were created. Without this, after a category is
+    // folded/unfolded or a command moves, list indexes map to the wrong rows and the wrong (or no) category is targeted.
     val rowsNow by rememberUpdatedState(rows)
     var dragId by remember { mutableStateOf<String?>(null) }
     var dragOffset by remember { mutableFloatStateOf(0f) }
-    // The group the dragged card is currently over ("" = ungrouped); the card only joins it when it is dropped.
-    var hoverGroup by remember { mutableStateOf<String?>(null) }
+    // The category the dragged card is currently over ("" = uncategorized); the card only joins it when it is dropped.
+    var hoverCategory by remember { mutableStateOf<String?>(null) }
     var pendingIndex by remember { mutableStateOf<Int?>(null) }
     if (showLog) {
         ShellLogScreen(onBack = { showLog = false })
@@ -306,10 +306,10 @@ fun ShellCommandsScreen(onBack: () -> Unit, vm: ShellCommandsViewModel = viewMod
         dragId = id
         dragOffset = 0f
         pendingIndex = null
-        hoverGroup = null
+        hoverCategory = null
     }
 
-    // What the dragged card is over. A group header (or the "Ungrouped" label) is small next to a card, so overlapping
+    // What the dragged card is over. A category header (or the "Uncategorized" label) is small next to a card, so overlapping
     // it clearly is enough to target it; otherwise the row under the card's center is the target.
     fun findTarget(cur: LazyListItemInfo, dragged: SavedCommand): Pair<LazyListItemInfo, ShellRow>? {
         val items = listState.layoutInfo.visibleItemsInfo
@@ -318,7 +318,7 @@ fun ShellCommandsScreen(onBack: () -> Unit, vm: ShellCommandsViewModel = viewMod
         val byOverlap = items.mapNotNull { info ->
             if (info.key == dragged.id) return@mapNotNull null
             val row = rowsNow.getOrNull(info.index) ?: return@mapNotNull null
-            val targetable = (row is ShellRow.Group && row.name != dragged.group) || (row is ShellRow.Label && dragged.group.isNotEmpty())
+            val targetable = (row is ShellRow.Category && row.name != dragged.category) || (row is ShellRow.Label && dragged.category.isNotEmpty())
             if (!targetable) return@mapNotNull null
             val overlap = minOf(bottom, (info.offset + info.size).toFloat()) - maxOf(top, info.offset.toFloat())
             if (overlap >= info.size * 0.3f) Triple(info, row, overlap) else null
@@ -329,19 +329,19 @@ fun ShellCommandsScreen(onBack: () -> Unit, vm: ShellCommandsViewModel = viewMod
         return rowsNow.getOrNull(hit.index)?.let { hit to it }
     }
 
-    // Called when the finger is released: if the card sits over another group, it moves there now.
+    // Called when the finger is released: if the card sits over another category, it moves there now.
     fun dropInto(id: String) {
         val cur = listState.layoutInfo.visibleItemsInfo.firstOrNull { it.key == id } ?: return
         val dragged = ui.commands.firstOrNull { it.id == id } ?: return
         val (hit, row) = findTarget(cur, dragged) ?: return
         when (row) {
-            is ShellRow.Group -> if (row.name != dragged.group) {
-                vm.moveToGroup(id, row.name, atEnd = false)
-                // A folded group opens so the dropped command stays visible.
-                if (row.collapsed) vm.expandGroup(row.name)
+            is ShellRow.Category -> if (row.name != dragged.category) {
+                vm.moveToCategory(id, row.name, atEnd = false)
+                // A folded category opens so the dropped command stays visible.
+                if (row.collapsed) vm.expandCategory(row.name)
             }
-            is ShellRow.Label -> if (dragged.group.isNotEmpty()) vm.moveToGroup(id, "", atEnd = false)
-            is ShellRow.Cmd -> if (row.command.group != dragged.group) {
+            is ShellRow.Label -> if (dragged.category.isNotEmpty()) vm.moveToCategory(id, "", atEnd = false)
+            is ShellRow.Cmd -> if (row.command.category != dragged.category) {
                 val center = cur.offset + dragOffset + cur.size / 2f
                 vm.moveNextTo(id, row.command.id, after = center > hit.offset + hit.size / 2f)
             }
@@ -352,7 +352,7 @@ fun ShellCommandsScreen(onBack: () -> Unit, vm: ShellCommandsViewModel = viewMod
         val dropped = dragId
         if (dropped != null) {
             dropInto(dropped)
-            hoverGroup = null
+            hoverCategory = null
             dragId = null
             dragOffset = 0f
             pendingIndex = null
@@ -375,16 +375,16 @@ fun ShellCommandsScreen(onBack: () -> Unit, vm: ShellCommandsViewModel = viewMod
         }
         val center = cur.offset + dragOffset + cur.size / 2f
         val dragged = ui.commands.firstOrNull { it.id == id } ?: return
-        // Live reordering only happens inside the card's own group; joining another group is decided on release.
-        fun sameGroupCmd(index: Int) = (rowsNow.getOrNull(index) as? ShellRow.Cmd)?.command?.group == dragged.group
-        hoverGroup = when (val r = findTarget(cur, dragged)?.second) {
-            is ShellRow.Group -> r.name
-            is ShellRow.Cmd -> r.command.group
+        // Live reordering only happens inside the card's own category; joining another category is decided on release.
+        fun sameCategoryCmd(index: Int) = (rowsNow.getOrNull(index) as? ShellRow.Cmd)?.command?.category == dragged.category
+        hoverCategory = when (val r = findTarget(cur, dragged)?.second) {
+            is ShellRow.Category -> r.name
+            is ShellRow.Cmd -> r.command.category
             is ShellRow.Label -> ""
             null -> null
-        }?.takeIf { it != dragged.group }
-        val next = visible.firstOrNull { it.index == cur.index + 1 && sameGroupCmd(it.index) }
-        val prev = visible.firstOrNull { it.index == cur.index - 1 && sameGroupCmd(it.index) }
+        }?.takeIf { it != dragged.category }
+        val next = visible.firstOrNull { it.index == cur.index + 1 && sameCategoryCmd(it.index) }
+        val prev = visible.firstOrNull { it.index == cur.index - 1 && sameCategoryCmd(it.index) }
         val target = when {
             next != null && center > next.offset + next.size / 2f -> next
             prev != null && center < prev.offset + prev.size / 2f -> prev
@@ -398,7 +398,7 @@ fun ShellCommandsScreen(onBack: () -> Unit, vm: ShellCommandsViewModel = viewMod
     }
 
     // Auto-scroll while a card is held near the top or bottom edge. It runs every frame, so the list keeps moving
-    // even when the finger is still; after each step dragBy(0f) refreshes the highlighted group and live swaps.
+    // even when the finger is still; after each step dragBy(0f) refreshes the highlighted category and live swaps.
     LaunchedEffect(dragId) {
         val id = dragId ?: return@LaunchedEffect
         val edge = with(density) { 56.dp.toPx() }
@@ -492,9 +492,9 @@ fun ShellCommandsScreen(onBack: () -> Unit, vm: ShellCommandsViewModel = viewMod
                 ) {
                     Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(12.dp)) {
                         ExtendedFloatingActionButton(
-                            text = { Text(stringResource(R.string.shell_group_new)) },
+                            text = { Text(stringResource(R.string.shell_category_new)) },
                             icon = { FabMenuIcon(Icons.Rounded.CreateNewFolder) },
-                            onClick = { fabOpen = false; newGroupDialog = true },
+                            onClick = { fabOpen = false; newCategoryDialog = true },
                             containerColor = cardColor,
                             contentColor = MaterialTheme.colorScheme.onSurface,
                         )
@@ -524,7 +524,7 @@ fun ShellCommandsScreen(onBack: () -> Unit, vm: ShellCommandsViewModel = viewMod
             }
             when {
                 ui.loading -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { LoadingIndicator() }
-                ui.commands.isEmpty() && ui.groups.isEmpty() -> ExpressiveEmptyState(
+                ui.commands.isEmpty() && ui.categories.isEmpty() -> ExpressiveEmptyState(
                     title = stringResource(R.string.shell_empty),
                     body = stringResource(R.string.shell_empty_body),
                     icon = Icons.Rounded.Terminal,
@@ -541,26 +541,26 @@ fun ShellCommandsScreen(onBack: () -> Unit, vm: ShellCommandsViewModel = viewMod
                 ) {
                     items(rows, key = { it.key }) { row ->
                         when (row) {
-                            is ShellRow.Group -> SwipeActionRow(
+                            is ShellRow.Category -> SwipeActionRow(
                                 enabled = dragId == null,
                                 shape = RoundedCornerShape(16.dp),
-                                onSwipeRight = { deleteGroup = row.name },
-                                onSwipeLeft = { groupMenu = row.name },
+                                onSwipeRight = { deleteCategory = row.name },
+                                onSwipeLeft = { categoryMenu = row.name },
                                 modifier = Modifier.animateItem(),
                             ) {
-                                GroupHeader(
+                                CategoryHeader(
                                     name = row.name,
                                     count = row.count,
                                     collapsed = row.collapsed,
-                                    highlight = hoverGroup == row.name,
+                                    highlight = hoverCategory == row.name,
                                     onToggle = { vm.toggleCollapsed(row.name) },
-                                    onMenu = { groupMenu = row.name },
+                                    onMenu = { categoryMenu = row.name },
                                 )
                             }
                             is ShellRow.Label -> Text(
-                                stringResource(R.string.shell_group_ungrouped),
+                                stringResource(R.string.shell_category_uncategorized),
                                 style = MaterialTheme.typography.labelLarge,
-                                color = if (hoverGroup == "") MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                color = if (hoverCategory == "") MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
                                 modifier = Modifier.padding(start = 6.dp, top = 8.dp).animateItem(),
                             )
                             is ShellRow.Cmd -> {
@@ -627,13 +627,13 @@ fun ShellCommandsScreen(onBack: () -> Unit, vm: ShellCommandsViewModel = viewMod
     editing?.let { target ->
         EditCommandDialog(
             existing = target.command,
-            groups = ui.groups,
+            categories = ui.categories,
             // Tile slots that other commands already hold, with the name of the command that holds each.
             takenTiles = ui.commands.filter { it.tile != 0 && it.id != target.command?.id }.associate { it.tile to it.name },
             otherShortcuts = ui.commands.count { it.shortcut && it.id != target.command?.id },
-            onNewGroup = vm::addGroup,
-            onSave = { name, command, shortcut, mode, timeoutSec, detached, confirm, showStatus, group, tile, statusWaitSec ->
-                vm.save(target.command?.id, name, command, shortcut, mode, timeoutSec, detached, confirm, showStatus, group, tile, statusWaitSec)
+            onNewCategory = vm::addCategory,
+            onSave = { name, command, shortcut, mode, timeoutSec, detached, confirm, showStatus, category, tile, statusWaitSec ->
+                vm.save(target.command?.id, name, command, shortcut, mode, timeoutSec, detached, confirm, showStatus, category, tile, statusWaitSec)
                 editing = null
             },
             onDelete = target.command?.let { c -> { vm.delete(c.id); editing = null } },
@@ -674,19 +674,19 @@ fun ShellCommandsScreen(onBack: () -> Unit, vm: ShellCommandsViewModel = viewMod
         }
     }
 
-    deleteGroup?.let { g ->
+    deleteCategory?.let { g ->
         ExpressiveDialog(
-            onDismissRequest = { deleteGroup = null },
+            onDismissRequest = { deleteCategory = null },
             title = stringResource(R.string.shell_delete_confirm_title, g),
             icon = Icons.Rounded.Delete,
             confirmButton = {
-                TextButton(onClick = { deleteGroup = null; vm.deleteGroup(g) }) {
+                TextButton(onClick = { deleteCategory = null; vm.deleteCategory(g) }) {
                     Text(stringResource(R.string.common_delete), color = MaterialTheme.colorScheme.error)
                 }
             },
-            dismissButton = { TextButton(onClick = { deleteGroup = null }) { Text(stringResource(R.string.common_cancel)) } },
+            dismissButton = { TextButton(onClick = { deleteCategory = null }) { Text(stringResource(R.string.common_cancel)) } },
         ) {
-            Text(stringResource(R.string.shell_group_delete_confirm_text))
+            Text(stringResource(R.string.shell_category_delete_confirm_text))
         }
     }
 
@@ -725,27 +725,27 @@ fun ShellCommandsScreen(onBack: () -> Unit, vm: ShellCommandsViewModel = viewMod
         }
     }
 
-    if (newGroupDialog) {
-        GroupNameDialog(
-            title = stringResource(R.string.shell_group_new),
+    if (newCategoryDialog) {
+        CategoryNameDialog(
+            title = stringResource(R.string.shell_category_new),
             initial = "",
             confirmText = stringResource(R.string.common_create),
-            onDismiss = { newGroupDialog = false },
-            onConfirm = { vm.addGroup(it); newGroupDialog = false },
+            onDismiss = { newCategoryDialog = false },
+            onConfirm = { vm.addCategory(it); newCategoryDialog = false },
         )
     }
-    groupMenu?.let { g ->
-        val position = ui.groups.indexOf(g)
-        GroupNameDialog(
-            title = stringResource(R.string.shell_group_edit),
+    categoryMenu?.let { g ->
+        val position = ui.categories.indexOf(g)
+        CategoryNameDialog(
+            title = stringResource(R.string.shell_category_edit),
             initial = g,
             confirmText = stringResource(R.string.common_save),
-            onDismiss = { groupMenu = null },
-            onConfirm = { vm.renameGroup(g, it); groupMenu = null },
-            onDelete = { vm.deleteGroup(g); groupMenu = null },
-            onMove = { by -> vm.moveGroup(g, by) },
+            onDismiss = { categoryMenu = null },
+            onConfirm = { vm.renameCategory(g, it); categoryMenu = null },
+            onDelete = { vm.deleteCategory(g); categoryMenu = null },
+            onMove = { by -> vm.moveCategory(g, by) },
             canMoveUp = position > 0,
-            canMoveDown = position >= 0 && position < ui.groups.lastIndex,
+            canMoveDown = position >= 0 && position < ui.categories.lastIndex,
         )
     }
 
@@ -909,12 +909,12 @@ private fun CommandCard(
 @Composable
 private fun EditCommandDialog(
     existing: SavedCommand?,
-    groups: List<String>,
+    categories: List<String>,
     takenTiles: Map<Int, String>,
     /** How many other commands already sit in the app icon menu. */
     otherShortcuts: Int,
-    onNewGroup: (String) -> Unit,
-    onSave: (name: String, command: String, shortcut: Boolean, mode: ShellMode, timeoutSec: Int, detached: Boolean, confirm: Boolean, showStatus: Boolean, group: String, tile: Int, statusWaitSec: Int) -> Unit,
+    onNewCategory: (String) -> Unit,
+    onSave: (name: String, command: String, shortcut: Boolean, mode: ShellMode, timeoutSec: Int, detached: Boolean, confirm: Boolean, showStatus: Boolean, category: String, tile: Int, statusWaitSec: Int) -> Unit,
     onDelete: (() -> Unit)?,
     onDuplicate: (() -> Unit)?,
     onPin: (() -> Unit)?,
@@ -934,9 +934,9 @@ private fun EditCommandDialog(
     var showStatus by remember { mutableStateOf(existing?.showStatus ?: true) }
     var waitText by remember { mutableStateOf(WAIT_PRESETS.minByOrNull { kotlin.math.abs(it - (existing?.statusWaitSec ?: ShellRunner.DEFAULT_STATUS_WAIT_SEC)) }.toString()) }
     val waitValid = waitText.toIntOrNull()?.let { it in ShellRunner.MIN_STATUS_WAIT_SEC..ShellRunner.MAX_STATUS_WAIT_SEC } == true
-    var group by remember { mutableStateOf(existing?.group.orEmpty()) }
+    var category by remember { mutableStateOf(existing?.category.orEmpty()) }
     var tile by remember { mutableStateOf(existing?.tile ?: 0) }
-    var newGroupDialog by remember { mutableStateOf(false) }
+    var newCategoryDialog by remember { mutableStateOf(false) }
     var showHelp by remember { mutableStateOf(false) }
     // The status banner is drawn over other apps, which needs that permission; it is asked for when the switch is
     // turned on. Without it the status is shown as a plain Toast (the switch stays on either way).
@@ -1018,18 +1018,18 @@ private fun EditCommandDialog(
             Text(stringResource(R.string.shell_overlay_message))
         }
     }
-    if (newGroupDialog) {
-        GroupNameDialog(
-            title = stringResource(R.string.shell_group_new),
+    if (newCategoryDialog) {
+        CategoryNameDialog(
+            title = stringResource(R.string.shell_category_new),
             initial = "",
             confirmText = stringResource(R.string.common_create),
-            onDismiss = { newGroupDialog = false },
-            onConfirm = { onNewGroup(it); group = it.trim(); newGroupDialog = false },
+            onDismiss = { newCategoryDialog = false },
+            onConfirm = { onNewCategory(it); category = it.trim(); newCategoryDialog = false },
         )
     }
     // Closing with unsaved changes asks first.
-    val initialValues = remember { listOf<Any>(name, command, shortcut, mode, timeoutSec, detached, confirm, showStatus, waitText, group, tile) }
-    val dirty = listOf<Any>(name, command, shortcut, mode, timeoutSec, detached, confirm, showStatus, waitText, group, tile) != initialValues
+    val initialValues = remember { listOf<Any>(name, command, shortcut, mode, timeoutSec, detached, confirm, showStatus, waitText, category, tile) }
+    val dirty = listOf<Any>(name, command, shortcut, mode, timeoutSec, detached, confirm, showStatus, waitText, category, tile) != initialValues
     val requestClose: () -> Unit = { if (dirty) { askDiscard = true } else { onDismiss() } }
     if (askDiscard) {
         ExpressiveDialog(
@@ -1139,11 +1139,11 @@ private fun EditCommandDialog(
     }
     // A full-screen editor instead of a small dialog: the options are grouped into sections (run, result, quick
     // access) and the whole page scrolls, so nothing is squeezed into a short inner scroll area.
-    var quickOpen by remember { mutableStateOf(group.isNotEmpty() || shortcut || tile != 0) }
+    var quickOpen by remember { mutableStateOf(category.isNotEmpty() || shortcut || tile != 0) }
     val canSave = command.isNotBlank() && (!showStatus || waitValid)
     val save = {
         onSave(
-            name, command, shortcut, mode, timeoutSec, detached, confirm, showStatus, group, tile,
+            name, command, shortcut, mode, timeoutSec, detached, confirm, showStatus, category, tile,
             waitText.toIntOrNull()?.coerceIn(ShellRunner.MIN_STATUS_WAIT_SEC, ShellRunner.MAX_STATUS_WAIT_SEC) ?: ShellRunner.DEFAULT_STATUS_WAIT_SEC,
         )
     }
@@ -1251,7 +1251,7 @@ private fun EditCommandDialog(
                     if (testOutput != null) TestOutputPanel(testOutput, testRunning)
 
                     // The options use the same grouped rows as the settings pages: an icon, a title, a short note and the
-                    // control on the row, in rounded groups with a heading.
+                    // control on the row, in rounded categories with a heading.
                     val timeoutOptions = listOf(ShellRunner.NO_TIMEOUT) + TIMEOUT_CHOICES
                     val timeoutLabels = timeoutOptions.associateWith { timeoutLabel(it) }
                     val modeLabels = ShellMode.entries.associateWith { m ->
@@ -1270,7 +1270,7 @@ private fun EditCommandDialog(
                     val tConfirm = stringResource(R.string.shell_confirm_switch)
                     val tShowStatus = stringResource(R.string.shell_show_status)
                     val tStatusWait = stringResource(R.string.shell_status_wait)
-                    val tGroup = stringResource(R.string.shell_group_title)
+                    val tCategory = stringResource(R.string.shell_category_title)
                     val tShortcut = stringResource(R.string.shell_shortcut)
                     val tTile = stringResource(R.string.shell_tile_setting)
                     val tPin = stringResource(R.string.shell_pin_home)
@@ -1334,22 +1334,22 @@ private fun EditCommandDialog(
 
                     // ── Quick access ──
                     SettingsGroup(stringResource(R.string.shell_section_quick)) {
-                        custom(title = tGroup, icon = Icons.Rounded.Folder) {
-                            // One horizontally scrollable row: "No group" and "+ New group" stay first, then the groups.
+                        custom(title = tCategory, icon = Icons.Rounded.Folder) {
+                            // One horizontally scrollable row: "No category" and "+ New category" stay first, then the categories.
                             val chipsState = rememberLazyListState()
-                            LaunchedEffect(group, groups.size) {
-                                val at = if (group.isEmpty()) 0 else groups.indexOf(group).let { if (it < 0) 0 else it + 2 }
+                            LaunchedEffect(category, categories.size) {
+                                val at = if (category.isEmpty()) 0 else categories.indexOf(category).let { if (it < 0) 0 else it + 2 }
                                 chipsState.animateScrollToItem(at)
                             }
                             LazyRow(state = chipsState, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                 item {
-                                    FilterChip(selected = group.isEmpty(), onClick = { group = "" }, label = { Text(stringResource(R.string.shell_group_none)) })
+                                    FilterChip(selected = category.isEmpty(), onClick = { category = "" }, label = { Text(stringResource(R.string.shell_category_none)) })
                                 }
                                 item {
-                                    AssistChip(onClick = { newGroupDialog = true }, label = { Text("+ " + stringResource(R.string.shell_group_new)) })
+                                    AssistChip(onClick = { newCategoryDialog = true }, label = { Text("+ " + stringResource(R.string.shell_category_new)) })
                                 }
-                                items(groups, key = { it }) { g ->
-                                    FilterChip(selected = group == g, onClick = { group = g }, label = { Text(g) })
+                                items(categories, key = { it }) { g ->
+                                    FilterChip(selected = category == g, onClick = { category = g }, label = { Text(g) })
                                 }
                             }
                         }
@@ -1382,7 +1382,7 @@ private fun EditCommandDialog(
                         if (onPin != null) link(tPin, icon = Icons.Rounded.Home, chevron = false) { onPin() }
                     }
 
-                    // ── Actions on an existing command: the group is left out when there are none (a new command). Delete asks first. ──
+                    // ── Actions on an existing command: the category is left out when there are none (a new command). Delete asks first. ──
                     SettingsGroup(stringResource(R.string.shell_section_actions)) {
                         if (onDuplicate != null) link(tDuplicate, icon = Icons.Rounded.ContentCopy, chevron = false) { onDuplicate() }
                         if (onDelete != null) link(tDelete, icon = Icons.Rounded.Delete, tint = Tint.ERROR, chevron = false) { askDeleteCommand = true }
@@ -1394,7 +1394,7 @@ private fun EditCommandDialog(
     }
 }
 
-/** Heading of a group of options in the command editor. */
+/** Heading of a category of options in the command editor. */
 @Composable
 private fun SectionTitle(text: String, modifier: Modifier = Modifier) {
     Text(
@@ -1408,12 +1408,12 @@ private fun SectionTitle(text: String, modifier: Modifier = Modifier) {
 private sealed interface ShellRow {
     val key: String
 
-    data class Group(val name: String, val count: Int, val collapsed: Boolean) : ShellRow {
+    data class Category(val name: String, val count: Int, val collapsed: Boolean) : ShellRow {
         override val key: String get() = "g:$name"
     }
 
     object Label : ShellRow {
-        override val key: String = "ungrouped"
+        override val key: String = "uncategorized"
     }
 
     data class Cmd(val command: SavedCommand, val nested: Boolean) : ShellRow {
@@ -1421,10 +1421,10 @@ private sealed interface ShellRow {
     }
 }
 
-/** Header of a group: tap to fold or unfold it, long-press to rename or delete it. */
+/** Header of a category: tap to fold or unfold it, long-press to rename or delete it. */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun GroupHeader(
+private fun CategoryHeader(
     name: String,
     count: Int,
     collapsed: Boolean,
@@ -1451,21 +1451,21 @@ private fun GroupHeader(
             }
             Icon(
                 if (collapsed) Icons.Rounded.ExpandMore else Icons.Rounded.ExpandLess,
-                contentDescription = stringResource(if (collapsed) R.string.shell_group_expand else R.string.shell_group_collapse),
+                contentDescription = stringResource(if (collapsed) R.string.shell_category_expand else R.string.shell_category_collapse),
             )
         }
     }
 }
 
 @Composable
-private fun GroupNameDialog(
+private fun CategoryNameDialog(
     title: String,
     initial: String,
     confirmText: String,
     onDismiss: () -> Unit,
     onConfirm: (String) -> Unit,
     onDelete: (() -> Unit)? = null,
-    /** Moves the group one place up (-1) or down (1); null for a group that doesn't exist yet. */
+    /** Moves the category one place up (-1) or down (1); null for a category that doesn't exist yet. */
     onMove: ((Int) -> Unit)? = null,
     canMoveUp: Boolean = false,
     canMoveDown: Boolean = false,
@@ -1477,7 +1477,7 @@ private fun GroupNameDialog(
         icon = Icons.Rounded.CreateNewFolder,
         confirmButton = { TextButton(onClick = { onConfirm(text) }, enabled = text.isNotBlank()) { Text(confirmText) } },
         dismissButton = {
-            if (onDelete != null) TextButton(onClick = onDelete) { Text(stringResource(R.string.shell_group_delete)) }
+            if (onDelete != null) TextButton(onClick = onDelete) { Text(stringResource(R.string.shell_category_delete)) }
             TextButton(onClick = onDismiss) { Text(stringResource(R.string.common_cancel)) }
         },
     ) {
@@ -1485,7 +1485,7 @@ private fun GroupNameDialog(
             OutlinedTextField(
                 value = text,
                 onValueChange = { text = it },
-                label = { Text(stringResource(R.string.shell_group_name)) },
+                label = { Text(stringResource(R.string.shell_category_name)) },
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth(),
             )
@@ -1494,12 +1494,12 @@ private fun GroupNameDialog(
                     OutlinedButton(onClick = { onMove(-1) }, enabled = canMoveUp, modifier = Modifier.weight(1f)) {
                         Icon(Icons.Rounded.ArrowUpward, contentDescription = null, modifier = Modifier.size(18.dp))
                         Spacer(Modifier.width(6.dp))
-                        Text(stringResource(R.string.shell_group_move_up), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Text(stringResource(R.string.shell_category_move_up), maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
                     OutlinedButton(onClick = { onMove(1) }, enabled = canMoveDown, modifier = Modifier.weight(1f)) {
                         Icon(Icons.Rounded.ArrowDownward, contentDescription = null, modifier = Modifier.size(18.dp))
                         Spacer(Modifier.width(6.dp))
-                        Text(stringResource(R.string.shell_group_move_down), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Text(stringResource(R.string.shell_category_move_down), maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
                 }
             }

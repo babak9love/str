@@ -45,9 +45,9 @@ data class ShellUiState(
     val backgroundIds: Set<String> = emptySet(),
     /** Finished runs whose result has not been dismissed yet; the first one is shown. */
     val runs: List<ShellRun> = emptyList(),
-    /** Group names in display order (includes groups that have no commands yet). */
-    val groups: List<String> = emptyList(),
-    /** Names of the groups that are currently folded. */
+    /** Category names in display order (includes categories that have no commands yet). */
+    val categories: List<String> = emptyList(),
+    /** Names of the categories that are currently folded. */
     val collapsed: Set<String> = emptySet(),
 ) {
     val run: ShellRun? get() = runs.firstOrNull()
@@ -62,18 +62,18 @@ class ShellCommandsViewModel(app: Application) : AndroidViewModel(app) {
     private fun loadNames(key: String): List<String> =
         runCatching { Json.decodeFromString(names, prefs.getString(key, "[]") ?: "[]") }.getOrDefault(emptyList())
 
-    private fun persistGroups() {
+    private fun persistCategories() {
         val st = _state.value
         prefs.edit()
-            .putString("groups", Json.encodeToString(names, st.groups))
+            .putString("categories", Json.encodeToString(names, st.categories))
             .putString("collapsed", Json.encodeToString(names, st.collapsed.toList()))
             .apply()
     }
 
-    /** Stored group order, plus any group named by a command (e.g. after an import) that is not stored yet. */
-    private fun mergeGroups(stored: List<String>, commands: List<SavedCommand>): List<String> {
+    /** Stored category order, plus any category named by a command (e.g. after an import) that is not stored yet. */
+    private fun mergeCategories(stored: List<String>, commands: List<SavedCommand>): List<String> {
         val result = stored.toMutableList()
-        for (c in commands) if (c.group.isNotEmpty() && c.group !in result) result += c.group
+        for (c in commands) if (c.category.isNotEmpty() && c.category !in result) result += c.category
         return result
     }
     private val _state = MutableStateFlow(ShellUiState())
@@ -82,7 +82,7 @@ class ShellCommandsViewModel(app: Application) : AndroidViewModel(app) {
     init {
         viewModelScope.launch {
             val list = withContext(Dispatchers.IO) { store.load() }
-            _state.update { it.copy(commands = list, groups = mergeGroups(loadNames("groups"), list), collapsed = loadNames("collapsed").toSet(), loading = false) }
+            _state.update { it.copy(commands = list, categories = mergeCategories(loadNames("categories"), list), collapsed = loadNames("collapsed").toSet(), loading = false) }
             withContext(Dispatchers.IO) { ShellShortcuts.publish(getApplication<Application>(), list) }
         }
     }
@@ -91,7 +91,7 @@ class ShellCommandsViewModel(app: Application) : AndroidViewModel(app) {
     fun reload() {
         viewModelScope.launch {
             val list = withContext(Dispatchers.IO) { saveLock.withLock { store.load() } }
-            _state.update { it.copy(commands = list, groups = mergeGroups(loadNames("groups"), list), loading = false) }
+            _state.update { it.copy(commands = list, categories = mergeCategories(loadNames("categories"), list), loading = false) }
             scanBackground(list)
         }
     }
@@ -106,7 +106,7 @@ class ShellCommandsViewModel(app: Application) : AndroidViewModel(app) {
         detached: Boolean = false,
         confirm: Boolean = false,
         showStatus: Boolean = true,
-        group: String = "",
+        category: String = "",
         tile: Int = 0,
         statusWaitSec: Int = ShellRunner.DEFAULT_STATUS_WAIT_SEC,
     ) {
@@ -116,8 +116,8 @@ class ShellCommandsViewModel(app: Application) : AndroidViewModel(app) {
         _state.value.commands.firstOrNull { it.id == id }?.let { old -> if (old.detached && !detached) cleanupFiles(old) }
         val targetId = id ?: UUID.randomUUID().toString()
         change { list ->
-            val edited = if (id == null) list + SavedCommand(targetId, label, cmd, shortcut, mode, timeoutSec, detached, confirm, showStatus, group.trim(), tile, statusWaitSec)
-            else list.map { if (it.id == id) it.copy(name = label, command = cmd, shortcut = shortcut, mode = mode, timeoutSec = timeoutSec, detached = detached, confirm = confirm, showStatus = showStatus, group = group.trim(), tile = tile, statusWaitSec = statusWaitSec) else it }
+            val edited = if (id == null) list + SavedCommand(targetId, label, cmd, shortcut, mode, timeoutSec, detached, confirm, showStatus, category.trim(), tile, statusWaitSec)
+            else list.map { if (it.id == id) it.copy(name = label, command = cmd, shortcut = shortcut, mode = mode, timeoutSec = timeoutSec, detached = detached, confirm = confirm, showStatus = showStatus, category = category.trim(), tile = tile, statusWaitSec = statusWaitSec) else it }
             // A tile slot runs one command: choosing it here takes it from whichever command had it.
             ShellTiles.resolve(edited, setOf(targetId))
         }
@@ -138,13 +138,13 @@ class ShellCommandsViewModel(app: Application) : AndroidViewModel(app) {
     fun exportTo(uri: Uri, onDone: (Int) -> Unit) {
         viewModelScope.launch {
             val commands = _state.value.commands
-            val groups = _state.value.groups
+            val categories = _state.value.categories
             val ok = withContext(Dispatchers.IO) {
                 runCatching {
                     // The user's own templates travel with the commands.
                     val templates = ShellTemplateStore(getApplication()).load()
                     getApplication<Application>().contentResolver.openOutputStream(uri, "wt")?.use {
-                        it.write(store.encode(commands, groups, templates).toByteArray())
+                        it.write(store.encode(commands, categories, templates).toByteArray())
                     } != null
                 }.getOrDefault(false)
             }
@@ -164,9 +164,9 @@ class ShellCommandsViewModel(app: Application) : AndroidViewModel(app) {
                 onDone(-1)
                 return@launch
             }
-            // Groups from the file that this device doesn't have yet are added at the end, in the file's order;
-            // this also brings over groups that hold no commands.
-            _state.update { st -> st.copy(groups = st.groups + incoming.groups.filter { it !in st.groups }) }
+            // Categories from the file that this device doesn't have yet are added at the end, in the file's order;
+            // this also brings over categories that hold no commands.
+            _state.update { st -> st.copy(categories = st.categories + incoming.categories.filter { it !in st.categories }) }
             // Templates in the file are merged by name: the same name is replaced, the others here are kept.
             if (incoming.templates.isNotEmpty()) {
                 withContext(Dispatchers.IO) { runCatching { ShellTemplateStore(getApplication()).merge(incoming.templates) } }
@@ -213,80 +213,80 @@ class ShellCommandsViewModel(app: Application) : AndroidViewModel(app) {
     /** Saves the current order and refreshes the launcher shortcuts, whose order follows the list. */
     fun commitOrder() = change { it }
 
-    fun addGroup(name: String) {
+    fun addCategory(name: String) {
         val n = name.trim()
-        if (n.isEmpty() || n in _state.value.groups) return
-        _state.update { it.copy(groups = it.groups + n) }
-        persistGroups()
+        if (n.isEmpty() || n in _state.value.categories) return
+        _state.update { it.copy(categories = it.categories + n) }
+        persistCategories()
     }
 
-    fun renameGroup(old: String, new: String) {
+    fun renameCategory(old: String, new: String) {
         val n = new.trim()
-        if (n.isEmpty() || n == old || n in _state.value.groups) return
+        if (n.isEmpty() || n == old || n in _state.value.categories) return
         _state.update { st ->
             st.copy(
-                groups = st.groups.map { if (it == old) n else it },
+                categories = st.categories.map { if (it == old) n else it },
                 collapsed = if (old in st.collapsed) st.collapsed - old + n else st.collapsed,
             )
         }
-        change { list -> list.map { if (it.group == old) it.copy(group = n) else it } }
+        change { list -> list.map { if (it.category == old) it.copy(category = n) else it } }
     }
 
-    /** Deletes only the group: its commands stay and become ungrouped. */
-    fun deleteGroup(name: String) {
-        _state.update { st -> st.copy(groups = st.groups - name, collapsed = st.collapsed - name) }
-        change { list -> list.map { if (it.group == name) it.copy(group = "") else it } }
+    /** Deletes only the category: its commands stay and become uncategorized. */
+    fun deleteCategory(name: String) {
+        _state.update { st -> st.copy(categories = st.categories - name, collapsed = st.collapsed - name) }
+        change { list -> list.map { if (it.category == name) it.copy(category = "") else it } }
     }
 
-    /** Moves a group one place up ([by] = -1) or down ([by] = 1) in the list of groups. */
-    fun moveGroup(name: String, by: Int) {
+    /** Moves a category one place up ([by] = -1) or down ([by] = 1) in the list of categories. */
+    fun moveCategory(name: String, by: Int) {
         _state.update { st ->
-            val from = st.groups.indexOf(name)
+            val from = st.categories.indexOf(name)
             val to = from + by
-            if (from < 0 || to !in st.groups.indices) st
-            else st.copy(groups = st.groups.toMutableList().apply { add(to, removeAt(from)) })
+            if (from < 0 || to !in st.categories.indices) st
+            else st.copy(categories = st.categories.toMutableList().apply { add(to, removeAt(from)) })
         }
-        persistGroups()
+        persistCategories()
     }
 
-    /** Unfolds a group, e.g. after a command was dropped into it while it was folded. */
-    fun expandGroup(name: String) {
+    /** Unfolds a category, e.g. after a command was dropped into it while it was folded. */
+    fun expandCategory(name: String) {
         if (name !in _state.value.collapsed) return
         _state.update { st -> st.copy(collapsed = st.collapsed - name) }
-        persistGroups()
+        persistCategories()
     }
 
     fun toggleCollapsed(name: String) {
         _state.update { st -> st.copy(collapsed = if (name in st.collapsed) st.collapsed - name else st.collapsed + name) }
-        persistGroups()
+        persistCategories()
     }
 
     /**
-     * Moves a command into [group] ("" = ungrouped) while it is being dragged: to the end of that group's commands,
+     * Moves a command into [category] ("" = uncategorized) while it is being dragged: to the end of that category's commands,
      * or to the start of them. Nothing is written until [commitOrder].
      */
-    fun moveToGroup(id: String, group: String, atEnd: Boolean) {
+    fun moveToCategory(id: String, category: String, atEnd: Boolean) {
         _state.update { st ->
             val cmd = st.commands.firstOrNull { it.id == id } ?: return@update st
-            if (cmd.group == group) return@update st
+            if (cmd.category == category) return@update st
             val rest = st.commands.filterNot { it.id == id }
-            val pos = if (atEnd) rest.indexOfLast { it.group == group }.let { if (it < 0) rest.size else it + 1 }
-            else rest.indexOfFirst { it.group == group }.let { if (it < 0) rest.size else it }
+            val pos = if (atEnd) rest.indexOfLast { it.category == category }.let { if (it < 0) rest.size else it + 1 }
+            else rest.indexOfFirst { it.category == category }.let { if (it < 0) rest.size else it }
             st.copy(
-                commands = rest.toMutableList().apply { add(pos, cmd.copy(group = group)) },
-                groups = if (group.isNotEmpty() && group !in st.groups) st.groups + group else st.groups,
+                commands = rest.toMutableList().apply { add(pos, cmd.copy(category = category)) },
+                categories = if (category.isNotEmpty() && category !in st.categories) st.categories + category else st.categories,
             )
         }
     }
 
-    /** Drops a command next to [anchorId], joining that command's group (or none). Nothing is written until [commitOrder]. */
+    /** Drops a command next to [anchorId], joining that command's category (or none). Nothing is written until [commitOrder]. */
     fun moveNextTo(id: String, anchorId: String, after: Boolean) {
         _state.update { st ->
             val cmd = st.commands.firstOrNull { it.id == id } ?: return@update st
             val anchor = st.commands.firstOrNull { it.id == anchorId } ?: return@update st
             val rest = st.commands.filterNot { it.id == id }
             val at = rest.indexOfFirst { it.id == anchorId }.let { if (after) it + 1 else it }
-            st.copy(commands = rest.toMutableList().apply { add(at, cmd.copy(group = anchor.group)) })
+            st.copy(commands = rest.toMutableList().apply { add(at, cmd.copy(category = anchor.category)) })
         }
     }
 
@@ -301,8 +301,8 @@ class ShellCommandsViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     private fun change(edit: (List<SavedCommand>) -> List<SavedCommand>) {
-        _state.update { st -> val cmds = edit(st.commands); st.copy(commands = cmds, groups = mergeGroups(st.groups, cmds)) }
-        persistGroups()
+        _state.update { st -> val cmds = edit(st.commands); st.copy(commands = cmds, categories = mergeCategories(st.categories, cmds)) }
+        persistCategories()
         viewModelScope.launch(Dispatchers.IO) {
             saveLock.withLock {
                 val latest = _state.value.commands

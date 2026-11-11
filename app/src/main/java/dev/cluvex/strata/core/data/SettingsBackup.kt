@@ -58,7 +58,7 @@ object SettingsBackup {
     const val CONNECTIONS_KEY = "connections"
     const val FOLDER_BADGES_KEY = "folderBadges"
     const val SHELL_COMMANDS_KEY = "shellCommands"
-    const val SHELL_GROUPS_KEY = "shellGroups"
+    const val SHELL_CATEGORIES_KEY = "shellCategories"
     const val SHELL_TEMPLATES_KEY = "shellTemplates"
 
     class Extras(
@@ -66,8 +66,8 @@ object SettingsBackup {
         val connections: List<RemoteConnection>?,
         val folderBadges: List<FolderBadgeEntry>? = null,
         val shellCommands: List<SavedCommand>? = null,
-        /** Shell group names in display order (includes groups without commands). */
-        val shellGroups: List<String>? = null,
+        /** Shell category names in display order (includes categories without commands). */
+        val shellCategories: List<String>? = null,
         /** The user's own command templates of the command editor. */
         val shellTemplates: List<ShellTemplate>? = null,
     )
@@ -78,7 +78,7 @@ object SettingsBackup {
         connections: List<RemoteConnection>,
         folderBadges: List<FolderBadgeEntry> = emptyList(),
         shellCommands: List<SavedCommand> = emptyList(),
-        shellGroups: List<String> = emptyList(),
+        shellCategories: List<String> = emptyList(),
         shellTemplates: List<ShellTemplate> = emptyList(),
     ): String {
         val root = Json.parseToJsonElement(text).jsonObject
@@ -88,7 +88,7 @@ object SettingsBackup {
                 CONNECTIONS_KEY to lenient.encodeToJsonElement(connections),
                 FOLDER_BADGES_KEY to lenient.encodeToJsonElement(folderBadges),
                 SHELL_COMMANDS_KEY to lenient.encodeToJsonElement(shellCommands),
-                SHELL_GROUPS_KEY to lenient.encodeToJsonElement(shellGroups),
+                SHELL_CATEGORIES_KEY to lenient.encodeToJsonElement(shellCategories),
                 SHELL_TEMPLATES_KEY to lenient.encodeToJsonElement(shellTemplates),
             ),
         )
@@ -102,7 +102,7 @@ object SettingsBackup {
             connections = root.list<RemoteConnection>(CONNECTIONS_KEY),
             folderBadges = root.tolerantList<FolderBadgeEntry>(FOLDER_BADGES_KEY),
             shellCommands = root.tolerantList<SavedCommand>(SHELL_COMMANDS_KEY),
-            shellGroups = root.names(SHELL_GROUPS_KEY),
+            shellCategories = root.names(SHELL_CATEGORIES_KEY),
             shellTemplates = root.tolerantList<ShellTemplate>(SHELL_TEMPLATES_KEY),
         )
     }
