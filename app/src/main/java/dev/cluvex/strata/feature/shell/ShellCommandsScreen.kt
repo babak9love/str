@@ -191,6 +191,8 @@ import dev.cluvex.strata.ui.theme.LocalAppearance
 private val TIMEOUT_CHOICES = listOf(10, 30, 60, 300, 600)
 
 @Composable
+private val WAIT_PRESETS = listOf(5, 10, 15, 20)
+
 private fun timeoutLabel(sec: Int): String =
     if (sec <= ShellRunner.NO_TIMEOUT) stringResource(R.string.shell_timeout_none)
     else if (sec < 60) stringResource(R.string.shell_timeout_seconds, sec) else stringResource(R.string.shell_timeout_minutes, sec / 60)
@@ -930,7 +932,7 @@ private fun EditCommandDialog(
     var detached by remember { mutableStateOf(existing?.detached ?: false) }
     var confirm by remember { mutableStateOf(existing?.confirm ?: false) }
     var showStatus by remember { mutableStateOf(existing?.showStatus ?: true) }
-    var waitText by remember { mutableStateOf((existing?.statusWaitSec ?: ShellRunner.DEFAULT_STATUS_WAIT_SEC).toString()) }
+    var waitText by remember { mutableStateOf(WAIT_PRESETS.minByOrNull { kotlin.math.abs(it - (existing?.statusWaitSec ?: ShellRunner.DEFAULT_STATUS_WAIT_SEC)) }.toString()) }
     val waitValid = waitText.toIntOrNull()?.let { it in ShellRunner.MIN_STATUS_WAIT_SEC..ShellRunner.MAX_STATUS_WAIT_SEC } == true
     var group by remember { mutableStateOf(existing?.group.orEmpty()) }
     var tile by remember { mutableStateOf(existing?.tile ?: 0) }
@@ -950,6 +952,7 @@ private fun EditCommandDialog(
     var pickTest by remember { mutableStateOf(false) }
     var snippetsOpen by remember { mutableStateOf(false) }
     var askDiscard by remember { mutableStateOf(false) }
+    var askSave by remember { mutableStateOf(false) }
     var askDeleteCommand by remember { mutableStateOf(false) }
     // The user's own templates of the command editor: stored on this device and included in a settings backup.
     val templateStore = remember { ShellTemplateStore(overlayContext.applicationContext) }
@@ -1144,6 +1147,17 @@ private fun EditCommandDialog(
             waitText.toIntOrNull()?.coerceIn(ShellRunner.MIN_STATUS_WAIT_SEC, ShellRunner.MAX_STATUS_WAIT_SEC) ?: ShellRunner.DEFAULT_STATUS_WAIT_SEC,
         )
     }
+    if (askSave) {
+        ExpressiveDialog(
+            onDismissRequest = { askSave = false },
+            title = stringResource(R.string.shell_save_confirm_title),
+            icon = Icons.Rounded.Edit,
+            confirmButton = { TextButton(onClick = { askSave = false; save() }) { Text(stringResource(R.string.common_save)) } },
+            dismissButton = { TextButton(onClick = { askSave = false }) { Text(stringResource(R.string.common_cancel)) } },
+        ) {
+            Text(stringResource(R.string.shell_save_confirm_message))
+        }
+    }
     Dialog(
         onDismissRequest = requestClose,
         properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false),
@@ -1161,7 +1175,7 @@ private fun EditCommandDialog(
                             }
                         },
                         actions = {
-                            TextButton(onClick = { save() }, enabled = canSave) { Text(stringResource(R.string.common_save)) }
+                            TextButton(onClick = { askSave = true }, enabled = canSave) { Text(stringResource(R.string.common_save)) }
                         },
                     )
                 },
@@ -1270,16 +1284,16 @@ private fun EditCommandDialog(
                         )
                         if (showStatus) {
                             custom(title = tStatusWait, icon = Icons.Rounded.AccessTime) {
-                                OutlinedTextField(
-                                    value = waitText,
-                                    onValueChange = { v -> waitText = v.filter { it.isDigit() }.take(3) },
-                                    // Faint hint inside the box while it is empty, like the search field.
-                                    placeholder = { Text("${ShellRunner.MIN_STATUS_WAIT_SEC}–${ShellRunner.MAX_STATUS_WAIT_SEC}") },
-                                    singleLine = true,
-                                    isError = !waitValid,
-                                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                                    modifier = Modifier.fillMaxWidth(),
-                                )
+                                // Quick picks only (max 20 s, 10 is the default).
+                                Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    for (n in WAIT_PRESETS) {
+                                        FilterChip(
+                                            selected = waitText.toIntOrNull() == n,
+                                            onClick = { waitText = n.toString() },
+                                            label = { Text(n.toString()) },
+                                        )
+                                    }
+                                }
                             }
                         }
                     }
@@ -1330,22 +1344,14 @@ private fun EditCommandDialog(
                                 }
                             }
                         }
+                        // Pinning only exists for a saved command (a new one has no id yet).
+                        if (onPin != null) link(tPin, icon = Icons.Rounded.Home, chevron = false) { onPin() }
                     }
 
                     // ── Actions on an existing command: the group is left out when there are none (a new command). Delete asks first. ──
                     SettingsGroup(stringResource(R.string.shell_section_actions)) {
-                        if (onPin != null) link(tPin, icon = Icons.Rounded.Home, chevron = false) { onPin() }
                         if (onDuplicate != null) link(tDuplicate, icon = Icons.Rounded.ContentCopy, chevron = false) { onDuplicate() }
                         if (onDelete != null) link(tDelete, icon = Icons.Rounded.Delete, tint = Tint.ERROR, chevron = false) { askDeleteCommand = true }
-                    }
-                    // Cancel leaves without saving anything (it does not ask); Save is the same as Save in the top bar.
-                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
-                        OutlinedButton(onClick = onDismiss, modifier = Modifier.weight(1f).height(48.dp)) {
-                            Text(stringResource(R.string.common_cancel), maxLines = 1, overflow = TextOverflow.Ellipsis)
-                        }
-                        Button(onClick = { save() }, enabled = canSave, modifier = Modifier.weight(1f).height(48.dp)) {
-                            Text(stringResource(R.string.common_save), maxLines = 1, overflow = TextOverflow.Ellipsis)
-                        }
                     }
                     Spacer(Modifier.height(16.dp))
                 }

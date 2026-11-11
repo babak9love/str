@@ -49,15 +49,15 @@
     <string name="shell_log_file_missing">فایل لاگ پیدا نشد (ممکن است حذف شده باشد)</string>
     <string name="shell_log_stop">توقف</string>
     <string name="shell_log_running">در حال اجرا</string>
-    <string name="shell_group_title">گروه</string>
-    <string name="shell_group_none">بدون گروه</string>
-    <string name="shell_group_new">گروه جدید</string>
-    <string name="shell_group_name">نام گروه</string>
+    <string name="shell_group_title">دسته‌بندی</string>
+    <string name="shell_group_none">بدون دسته‌بندی</string>
+    <string name="shell_group_new">دسته‌بندی جدید</string>
+    <string name="shell_group_name">نام دسته‌بندی</string>
     <string name="shell_group_ungrouped">دسته‌بندی‌نشده</string>
-    <string name="shell_group_edit">ویرایش گروه</string>
-    <string name="shell_group_delete">حذف گروه</string>
+    <string name="shell_group_edit">ویرایش دسته‌بندی</string>
+    <string name="shell_group_delete">حذف دسته‌بندی</string>
     <string name="shell_delete_confirm_title">%1$s حذف شود؟</string>
-    <string name="shell_group_delete_confirm_text">دستورهای این گروه نگه داشته می‌شوند و به «دسته‌بندی‌نشده» می‌روند.</string>
+    <string name="shell_group_delete_confirm_text">دستورهای این دسته‌بندی نگه داشته می‌شوند و به «دسته‌بندی‌نشده» می‌روند.</string>
     <string name="shell_group_move_up">بالاتر</string>
     <string name="shell_group_move_down">پایین‌تر</string>
     <string name="shell_group_expand">باز کردن</string>
@@ -206,4 +206,6 @@
     <string name="shell_snip_density_show">نمایش تراکم نمایشگر</string>
     <string name="shell_snip_nfc_off">خاموش کردن NFC</string>
     <string name="shell_section_actions">کارها</string>
+    <string name="shell_save_confirm_title">ذخیره تغییرات؟</string>
+    <string name="shell_save_confirm_message">تغییرات روی این دستور ذخیره می‌شود.</string>
 </resources>

@@ -155,7 +155,7 @@ object ShellRunner {
     /** Default seconds the status message waits for a result, and the range a person may type. */
     const val DEFAULT_STATUS_WAIT_SEC = 10
     const val MIN_STATUS_WAIT_SEC = 1
-    const val MAX_STATUS_WAIT_SEC = 300
+    const val MAX_STATUS_WAIT_SEC = 20
     /** Timeout value meaning "no limit"; only background commands can use it. */
     const val NO_TIMEOUT = 0
     const val MIN_TIMEOUT_SEC = 5

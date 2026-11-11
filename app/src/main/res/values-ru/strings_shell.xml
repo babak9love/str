@@ -49,15 +49,15 @@
     <string name="shell_log_file_missing">Файл журнала не найден (возможно, он удалён)</string>
     <string name="shell_log_stop">Остановить</string>
     <string name="shell_log_running">Выполняется</string>
-    <string name="shell_group_title">Группа</string>
-    <string name="shell_group_none">Без группы</string>
-    <string name="shell_group_new">Новая группа</string>
-    <string name="shell_group_name">Название группы</string>
-    <string name="shell_group_ungrouped">Вне групп</string>
-    <string name="shell_group_edit">Изменить группу</string>
-    <string name="shell_group_delete">Удалить группу</string>
+    <string name="shell_group_title">Категория</string>
+    <string name="shell_group_none">Без категории</string>
+    <string name="shell_group_new">Новая категория</string>
+    <string name="shell_group_name">Название категории</string>
+    <string name="shell_group_ungrouped">Без категории</string>
+    <string name="shell_group_edit">Изменить категорию</string>
+    <string name="shell_group_delete">Удалить категорию</string>
     <string name="shell_delete_confirm_title">Удалить «%1$s»?</string>
-    <string name="shell_group_delete_confirm_text">Команды этой группы останутся и переместятся в «Вне групп».</string>
+    <string name="shell_group_delete_confirm_text">Команды этой категории останутся и переместятся в «Без категории».</string>
     <string name="shell_group_move_up">Выше</string>
     <string name="shell_group_move_down">Ниже</string>
     <string name="shell_group_expand">Развернуть</string>
@@ -206,4 +206,6 @@
     <string name="shell_snip_density_show">Показать плотность экрана</string>
     <string name="shell_snip_nfc_off">Выключить NFC</string>
     <string name="shell_section_actions">Действия</string>
+    <string name="shell_save_confirm_title">Сохранить изменения?</string>
+    <string name="shell_save_confirm_message">Изменения будут сохранены в этой команде.</string>
 </resources>
