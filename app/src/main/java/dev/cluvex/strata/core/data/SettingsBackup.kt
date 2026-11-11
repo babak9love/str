@@ -82,16 +82,16 @@ object SettingsBackup {
         shellTemplates: List<ShellTemplate> = emptyList(),
     ): String {
         val root = Json.parseToJsonElement(text).jsonObject
-        val extended = JsonObject(
-            root + mapOf(
-                BOOKMARKS_KEY to lenient.encodeToJsonElement(bookmarks),
-                CONNECTIONS_KEY to lenient.encodeToJsonElement(connections),
-                FOLDER_BADGES_KEY to lenient.encodeToJsonElement(folderBadges),
-                SHELL_COMMANDS_KEY to lenient.encodeToJsonElement(shellCommands),
-                SHELL_CATEGORIES_KEY to lenient.encodeToJsonElement(shellCategories),
-                SHELL_TEMPLATES_KEY to lenient.encodeToJsonElement(shellTemplates),
-            ),
+        val added = mutableMapOf<String, JsonElement>(
+            BOOKMARKS_KEY to lenient.encodeToJsonElement(bookmarks),
+            CONNECTIONS_KEY to lenient.encodeToJsonElement(connections),
+            FOLDER_BADGES_KEY to lenient.encodeToJsonElement(folderBadges),
+            SHELL_COMMANDS_KEY to lenient.encodeToJsonElement(shellCommands),
         )
+        // Like the shell export file: the category order and the templates are only written when there are some.
+        if (shellCategories.isNotEmpty()) added[SHELL_CATEGORIES_KEY] = lenient.encodeToJsonElement(shellCategories)
+        if (shellTemplates.isNotEmpty()) added[SHELL_TEMPLATES_KEY] = lenient.encodeToJsonElement(shellTemplates)
+        val extended = JsonObject(root + added)
         return pretty.encodeToString(JsonObject.serializer(), extended)
     }
 

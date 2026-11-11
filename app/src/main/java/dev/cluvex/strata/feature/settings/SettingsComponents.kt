@@ -12,6 +12,7 @@ import kotlin.math.roundToInt
 import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
@@ -330,6 +331,43 @@ fun SettingsGroupScope.custom(
             }
         },
     ) { if (headline != null) headline() else if (title != null) Text(title) }
+}
+
+/**
+ * The same connected buttons as [ConnectedChoice], for a row that can be longer than the screen: it scrolls sideways, each
+ * button as wide as its label. [selected] is an index into [labels], or -1 when none is chosen. [state] lets the caller scroll.
+ */
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
+@Composable
+fun ScrollableConnectedChoice(
+    labels: List<String>,
+    selected: Int,
+    onSelect: (Int) -> Unit,
+    modifier: Modifier = Modifier,
+    state: androidx.compose.foundation.lazy.LazyListState = androidx.compose.foundation.lazy.rememberLazyListState(),
+) {
+    androidx.compose.foundation.lazy.LazyRow(
+        state = state,
+        modifier = modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(ButtonGroupDefaults.ConnectedSpaceBetween),
+    ) {
+        itemsIndexed(labels) { i, label ->
+            val shapes = when (i) {
+                0 -> ButtonGroupDefaults.connectedLeadingButtonShapes()
+                labels.lastIndex -> ButtonGroupDefaults.connectedTrailingButtonShapes()
+                else -> ButtonGroupDefaults.connectedMiddleButtonShapes()
+            }
+            ToggleButton(
+                checked = i == selected,
+                onCheckedChange = { onSelect(i) },
+                shapes = shapes,
+                contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 16.dp),
+                modifier = Modifier.semantics { role = Role.RadioButton },
+            ) {
+                Text(label, maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.labelLarge)
+            }
+        }
+    }
 }
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)

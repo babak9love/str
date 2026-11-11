@@ -12,8 +12,6 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.foundation.lazy.LazyListItemInfo
-import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.material3.AssistChip
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
@@ -56,6 +54,7 @@ import dev.cluvex.strata.feature.settings.link
 import dev.cluvex.strata.feature.settings.custom
 import dev.cluvex.strata.feature.settings.choice
 import dev.cluvex.strata.feature.settings.Tint
+import dev.cluvex.strata.feature.settings.ScrollableConnectedChoice
 import dev.cluvex.strata.feature.settings.SettingsGroup
 import androidx.compose.ui.graphics.Color
 import androidx.compose.material.icons.rounded.ContentCopy
@@ -1334,24 +1333,26 @@ private fun EditCommandDialog(
 
                     // ── Quick access ──
                     SettingsGroup(stringResource(R.string.shell_section_quick)) {
-                        custom(title = tCategory, icon = Icons.Rounded.Folder) {
-                            // One horizontally scrollable row: "No category" and "+ New category" stay first, then the categories.
+                        custom(title = tCategory, icon = Icons.Rounded.Folder, wide = true) {
+                            // Like "Run with": connected buttons under the title. One row that scrolls sideways: "No category" and
+                            // "+ New category" stay first, then the categories.
                             val chipsState = rememberLazyListState()
-                            LaunchedEffect(category, categories.size) {
-                                val at = if (category.isEmpty()) 0 else categories.indexOf(category).let { if (it < 0) 0 else it + 2 }
-                                chipsState.animateScrollToItem(at)
-                            }
-                            LazyRow(state = chipsState, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                item {
-                                    FilterChip(selected = category.isEmpty(), onClick = { category = "" }, label = { Text(stringResource(R.string.shell_category_none)) })
-                                }
-                                item {
-                                    AssistChip(onClick = { newCategoryDialog = true }, label = { Text("+ " + stringResource(R.string.shell_category_new)) })
-                                }
-                                items(categories, key = { it }) { g ->
-                                    FilterChip(selected = category == g, onClick = { category = g }, label = { Text(g) })
-                                }
-                            }
+                            val tNone = stringResource(R.string.shell_category_none)
+                            val tNew = "+ " + stringResource(R.string.shell_category_new)
+                            val selectedAt = if (category.isEmpty()) 0 else categories.indexOf(category).let { if (it < 0) 0 else it + 2 }
+                            LaunchedEffect(category, categories.size) { chipsState.animateScrollToItem(selectedAt) }
+                            ScrollableConnectedChoice(
+                                labels = listOf(tNone, tNew) + categories,
+                                selected = selectedAt,
+                                onSelect = { i ->
+                                    when (i) {
+                                        0 -> category = ""
+                                        1 -> newCategoryDialog = true
+                                        else -> category = categories[i - 2]
+                                    }
+                                },
+                                state = chipsState,
+                            )
                         }
                         // The launcher only shows a few app icon shortcuts; a command that already has one may always turn it off.
                         switch(tShortcut, shortcut, { shortcut = it }, summary = shortcutFullNote, icon = Icons.Rounded.Shortcut, enabled = shortcut || !shortcutsFull)
