@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="picker_hint">Проведите по изображению, чтобы навести — кольцо показывает точный пиксель — и отпустите, чтобы выбрать. Стрелки уточняют положение, «Выбрать» подтверждает.</string>
+    <string name="picker_pick">Выбрать</string>
+    <string name="picker_move_left">Влево</string>
+    <string name="picker_move_right">Вправо</string>
+    <string name="picker_move_up">Вверх</string>
+    <string name="picker_move_down">Вниз</string>
+    <string name="picker_open_failed">Это изображение нельзя открыть для выбора цвета.</string>
+    <string name="picker_sampled">выборка %1$d × %2$d</string>
+    <string name="picker_position">x %1$d, y %2$d</string>
+    <string name="picker_from_history">из истории</string>
+    <string name="picker_alpha">прозрачность %1$d%%</string>
+    <string name="picker_copied_value">Скопировано: %1$s</string>
+    <string name="picker_copied_count">Скопировано цветов: %1$d</string>
+    <string name="picker_history">История</string>
+    <string name="picker_copy_all">Копировать все HEX</string>
+    <string name="picker_settings">Настройки пипетки</string>
+    <string name="picker_zoom">Увеличение лупы</string>
+    <string name="picker_zoom_none">Без увеличения</string>
+    <string name="picker_zoom_hint">Увеличение относительно показанного изображения. Чем выше, тем проще попасть в нужный пиксель.</string>
+    <string name="picker_step">Шаг стрелок</string>
+    <string name="picker_step_px">%1$d пикс.</string>
+    <string name="picker_autocopy">Копировать автоматически при выборе</string>
+    <string name="picker_off">Выкл.</string>
+    <string name="picker_details">Все форматы и история</string>
+</resources>

@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="picker_hint">Drag on the picture to aim — the ring marks the exact pixel — and lift to pick. The arrows fine-tune, Pick confirms.</string>
+    <string name="picker_pick">Pick</string>
+    <string name="picker_move_left">Move left</string>
+    <string name="picker_move_right">Move right</string>
+    <string name="picker_move_up">Move up</string>
+    <string name="picker_move_down">Move down</string>
+    <string name="picker_open_failed">This picture can\'t be opened for picking colors.</string>
+    <string name="picker_sampled">sampled at %1$d × %2$d</string>
+    <string name="picker_position">x %1$d, y %2$d</string>
+    <string name="picker_from_history">from history</string>
+    <string name="picker_alpha">alpha %1$d%%</string>
+    <string name="picker_copied_value">Copied %1$s</string>
+    <string name="picker_copied_count">Copied colors: %1$d</string>
+    <string name="picker_history">History</string>
+    <string name="picker_copy_all">Copy all HEX</string>
+    <string name="picker_settings">Picker settings</string>
+    <string name="picker_zoom">Loupe zoom</string>
+    <string name="picker_zoom_none">No zoom</string>
+    <string name="picker_zoom_hint">Magnification relative to the picture as shown. Higher makes it easier to hit one exact pixel.</string>
+    <string name="picker_step">Arrow-pad step</string>
+    <string name="picker_step_px">%1$d px</string>
+    <string name="picker_autocopy">Copy automatically when I pick</string>
+    <string name="picker_off">Off</string>
+    <string name="picker_details">All formats and history</string>
+    <string name="picker_zoom_x" translatable="false">%1$d×</string>
+</resources>

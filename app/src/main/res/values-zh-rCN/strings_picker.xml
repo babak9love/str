@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="picker_hint">在图片上拖动来瞄准（圆环标出准确的像素），松手即取色。方向键可微调，点“取色”确认。</string>
+    <string name="picker_pick">取色</string>
+    <string name="picker_move_left">向左移动</string>
+    <string name="picker_move_right">向右移动</string>
+    <string name="picker_move_up">向上移动</string>
+    <string name="picker_move_down">向下移动</string>
+    <string name="picker_open_failed">无法打开此图片来取色。</string>
+    <string name="picker_sampled">采样为 %1$d × %2$d</string>
+    <string name="picker_position">x %1$d，y %2$d</string>
+    <string name="picker_from_history">来自历史记录</string>
+    <string name="picker_alpha">透明度 %1$d%%</string>
+    <string name="picker_copied_value">已复制 %1$s</string>
+    <string name="picker_copied_count">已复制颜色数：%1$d</string>
+    <string name="picker_history">历史记录</string>
+    <string name="picker_copy_all">复制全部 HEX</string>
+    <string name="picker_settings">取色器设置</string>
+    <string name="picker_zoom">放大镜倍数</string>
+    <string name="picker_zoom_none">不放大</string>
+    <string name="picker_zoom_hint">相对于当前显示的图片的放大倍数。倍数越高，越容易精确点中某个像素。</string>
+    <string name="picker_step">方向键步长</string>
+    <string name="picker_step_px">%1$d 像素</string>
+    <string name="picker_autocopy">取色时自动复制</string>
+    <string name="picker_off">关闭</string>
+    <string name="picker_details">全部格式和历史记录</string>
+</resources>

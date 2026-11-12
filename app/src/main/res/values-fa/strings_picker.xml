@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="picker_hint">روی تصویر بکشید تا نشانه بگیرید — حلقه، پیکسل دقیق را نشان می‌دهد — و برای انتخاب رها کنید. با فلش‌ها دقیق‌تر جابه‌جا شوید و با «انتخاب» تأیید کنید.</string>
+    <string name="picker_pick">انتخاب</string>
+    <string name="picker_move_left">حرکت به چپ</string>
+    <string name="picker_move_right">حرکت به راست</string>
+    <string name="picker_move_up">حرکت به بالا</string>
+    <string name="picker_move_down">حرکت به پایین</string>
+    <string name="picker_open_failed">این تصویر برای انتخاب رنگ باز نمی‌شود.</string>
+    <string name="picker_sampled">نمونه‌برداری در \u2066%1$d × %2$d\u2069</string>
+    <string name="picker_position">x \u2066%1$d\u2069، y \u2066%2$d\u2069</string>
+    <string name="picker_from_history">از تاریخچه</string>
+    <string name="picker_alpha">شفافیت %1$d%%</string>
+    <string name="picker_copied_value">\u2066%1$s\u2069 کپی شد</string>
+    <string name="picker_copied_count">رنگ‌های کپی‌شده: %1$d</string>
+    <string name="picker_history">تاریخچه</string>
+    <string name="picker_copy_all">کپی همه HEX</string>
+    <string name="picker_settings">تنظیمات انتخابگر</string>
+    <string name="picker_zoom">بزرگ‌نمایی ذره‌بین</string>
+    <string name="picker_zoom_none">بدون بزرگ‌نمایی</string>
+    <string name="picker_zoom_hint">بزرگ‌نمایی نسبت به تصویرِ نمایش‌داده‌شده است. هرچه بیشتر باشد، انتخاب یک پیکسل دقیق آسان‌تر است.</string>
+    <string name="picker_step">گام صفحه‌ی فلش</string>
+    <string name="picker_step_px">%1$d پیکسل</string>
+    <string name="picker_autocopy">هنگام انتخاب، خودکار کپی شود</string>
+    <string name="picker_off">خاموش</string>
+    <string name="picker_details">همه‌ی قالب‌ها و تاریخچه</string>
+</resources>

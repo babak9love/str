@@ -10,6 +10,7 @@ import androidx.datastore.preferences.core.floatPreferencesKey
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
+import dev.cluvex.strata.core.color.PickerPrefs
 import dev.cluvex.strata.core.color.RecentColors
 import dev.cluvex.strata.core.model.ActionLayout
 import dev.cluvex.strata.core.model.AppearancePrefs
@@ -230,6 +231,8 @@ class SettingsRepository(private val context: Context) {
         val APK_NAME_PATTERN = stringPreferencesKey("apk_name_pattern")
         val RENAME_HISTORY = stringPreferencesKey("rename_history")
         val RECENT_COLORS = stringPreferencesKey("recent_colors")
+        val PICK_HISTORY = stringPreferencesKey("image_pick_history")
+        val PICK_SETTINGS = stringPreferencesKey("image_pick_settings")
         val PLUGIN_PINS = stringPreferencesKey("plugin_pins")
         val RUN_COMMANDS = stringPreferencesKey("run_commands")
         val LAST_LEFT = stringPreferencesKey("last_left")
@@ -255,7 +258,7 @@ class SettingsRepository(private val context: Context) {
         val STRINGS = listOf(
             SORT_BY, FOLDER_SORTS, THEME_MODE, THEME_STYLE, CONTRAST, CORNERS, ICON_SHAPE, FOLDER_STYLE, MOTION, VIEW_MODE, DATE_STYLE, SIZE_UNITS,
             START_FOLDER, START_PATH, CONFLICT, UI_DENSITY, OPEN_DEFAULTS, EDITOR_THEME, APK_EXTRACT_DIR, APK_NAME_PATTERN,
-            RENAME_HISTORY, RECENT_COLORS, PLUGIN_PINS, LAST_LEFT, LAST_RIGHT, RUN_COMMANDS, READER_THEME, READER_SPOTS, READER_MARKS,
+            RENAME_HISTORY, RECENT_COLORS, PICK_HISTORY, PICK_SETTINGS, PLUGIN_PINS, LAST_LEFT, LAST_RIGHT, RUN_COMMANDS, READER_THEME, READER_SPOTS, READER_MARKS,
             ACTION_LAYOUT, LOCK_DELAY, VAULT_LOCK_DELAY, PROTECTED_FOLDERS, BOOKMARK_STYLE, DRAWER_HIDDEN,
         )
 
@@ -311,14 +314,14 @@ class SettingsRepository(private val context: Context) {
             // Reader
             READER_THEME.name, READER_KEEP_SCREEN.name, READER_SPOTS.name, READER_MARKS.name,
             // Other
-            RECENT_COLORS.name, PLUGIN_PINS.name,
+            RECENT_COLORS.name, PICK_HISTORY.name, PICK_SETTINGS.name, PLUGIN_PINS.name,
         )
 
         val PRIVATE: Set<String> = setOf(
             PLUGIN_PINS.name, LAST_LEFT.name, LAST_RIGHT.name, READER_SPOTS.name, APP_LOCK.name, LOCK_DELAY.name, VAULT_LOCK_DELAY.name,
         )
         val HISTORY: Set<String> = setOf(
-            RENAME_HISTORY.name, RECENT_COLORS.name, PLUGIN_PINS.name, LAST_LEFT.name, LAST_RIGHT.name, READER_SPOTS.name, READER_MARKS.name,
+            RENAME_HISTORY.name, RECENT_COLORS.name, PICK_HISTORY.name, PLUGIN_PINS.name, LAST_LEFT.name, LAST_RIGHT.name, READER_SPOTS.name, READER_MARKS.name,
             APP_LOCK.name, LOCK_DELAY.name, VAULT_LOCK_DELAY.name,
         )
     }
@@ -455,6 +458,18 @@ class SettingsRepository(private val context: Context) {
     }
 
     suspend fun setRecentColors(colors: List<Int>) = context.dataStore.edit { p -> p[Keys.RECENT_COLORS] = RecentColors.encode(colors) }
+
+    val pickHistory: Flow<List<Int>> = context.dataStore.data.map { p -> PickerPrefs.decodeHistory(p[Keys.PICK_HISTORY]) }
+
+    suspend fun pushPickHistory(argb: Int) = context.dataStore.edit { p ->
+        p[Keys.PICK_HISTORY] = PickerPrefs.encodeHistory(PickerPrefs.pushHistory(PickerPrefs.decodeHistory(p[Keys.PICK_HISTORY]), argb))
+    }
+
+    suspend fun clearPickHistory() = context.dataStore.edit { p -> p[Keys.PICK_HISTORY] = "" }
+
+    val pickSettings: Flow<PickerPrefs.Settings> = context.dataStore.data.map { p -> PickerPrefs.decodeSettings(p[Keys.PICK_SETTINGS]) }
+
+    suspend fun setPickSettings(settings: PickerPrefs.Settings) = context.dataStore.edit { p -> p[Keys.PICK_SETTINGS] = settings.encode() }
 
     val pluginPins: Flow<PluginPins> = context.dataStore.data.map { p -> PluginPins.decode(p[Keys.PLUGIN_PINS]) }
 

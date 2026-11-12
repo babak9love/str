@@ -22,6 +22,7 @@ import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.automirrored.rounded.OpenInNew
+import androidx.compose.material.icons.rounded.Colorize
 import androidx.compose.material.icons.rounded.Info
 import androidx.compose.material.icons.rounded.Share
 import dev.cluvex.strata.ui.expressive.AlertDialog
@@ -69,6 +70,7 @@ import dev.cluvex.strata.core.model.FileItem
 import dev.cluvex.strata.core.util.FileKind
 import dev.cluvex.strata.core.util.Formatters
 import dev.cluvex.strata.core.util.IntentUtils
+import dev.cluvex.strata.feature.color.ImageColorPicker
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.withContext
@@ -95,6 +97,7 @@ fun ImageViewerScreen(path: String, showHidden: Boolean, sortOrder: dev.cluvex.s
     }
     var chrome by remember { mutableStateOf(true) }
     var info by remember { mutableStateOf<File?>(null) }
+    var picking by remember { mutableStateOf(false) }
     val status = remember { mutableStateMapOf<File, PictureStatus>() }
     BackHandler(onBack = onBack)
     LightSystemBarIcons()
@@ -152,11 +155,15 @@ fun ImageViewerScreen(path: String, showHidden: Boolean, sortOrder: dev.cluvex.s
                 IconButton(onClick = { onOpenWith(FileItem.of(current)) }) {
                     Icon(Icons.AutoMirrored.Rounded.OpenInNew, contentDescription = stringResource(R.string.media_open_with), tint = Color.White)
                 }
+                IconButton(onClick = { picking = true }, modifier = Modifier.testTag("image-color-picker-button")) {
+                    Icon(Icons.Rounded.Colorize, contentDescription = stringResource(R.string.color_picker_title), tint = Color.White)
+                }
                 IconButton(onClick = { info = current }) {
                     Icon(Icons.Rounded.Info, contentDescription = stringResource(R.string.media_image_info), tint = Color.White)
                 }
             }
         }
+        if (picking) ImageColorPicker(file = current, onClose = { picking = false })
     }
 
     info?.let { file -> ImageInfoDialog(file, onDismiss = { info = null }) }
