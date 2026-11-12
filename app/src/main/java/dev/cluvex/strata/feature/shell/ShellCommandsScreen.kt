@@ -1421,6 +1421,8 @@ private fun EditCommandDialog(
                                 // Tapping the chosen tile again clears the choice (0 = no tile).
                                 selected = slots.indexOf(tile),
                                 onSelect = { i -> tile = if (tile == slots[i]) 0 else slots[i] },
+                                // A slot another command already holds is highlighted and shows that command's name.
+                                highlighted = slots.mapIndexedNotNull { i, n -> if (takenTiles[n] != null) i else null }.toSet(),
                             )
                         }
                         // Pinning only exists for a saved command (a new one has no id yet).
@@ -1484,7 +1486,7 @@ private fun CategoryHeader(
     highlight: Boolean = false,
 ) {
     val colors = MaterialTheme.colorScheme
-    val shape = RoundedCornerShape(16.dp)
+    val shape = RoundedCornerShape(10.dp)
     Surface(
         shape = shape,
         color = if (highlight) colors.primaryContainer else colors.surfaceContainerHigh,
@@ -1494,7 +1496,7 @@ private fun CategoryHeader(
         Row(Modifier.height(IntrinsicSize.Min).background(Brush.horizontalGradient(listOf(color.copy(alpha = 0.22f), Color.Transparent)))) {
             Box(Modifier.width(5.dp).fillMaxHeight().background(color))
             Row(
-                Modifier.weight(1f).heightIn(min = 52.dp).padding(horizontal = 16.dp, vertical = 10.dp),
+                Modifier.weight(1f).heightIn(min = 68.dp).padding(horizontal = 16.dp, vertical = 12.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
             ) {

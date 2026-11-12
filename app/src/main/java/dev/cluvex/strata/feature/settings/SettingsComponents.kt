@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
@@ -41,6 +42,7 @@ import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.ListItemShapes
 import androidx.compose.material3.MaterialShapes
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SegmentedListItem
@@ -345,6 +347,8 @@ fun ScrollableConnectedChoice(
     onSelect: (Int) -> Unit,
     modifier: Modifier = Modifier,
     state: androidx.compose.foundation.lazy.LazyListState = androidx.compose.foundation.lazy.rememberLazyListState(),
+    /** Indexes drawn in the tertiary colours (e.g. a slot another command already holds). */
+    highlighted: Set<Int> = emptySet(),
 ) {
     androidx.compose.foundation.lazy.LazyRow(
         state = state,
@@ -352,19 +356,43 @@ fun ScrollableConnectedChoice(
         horizontalArrangement = Arrangement.spacedBy(ButtonGroupDefaults.ConnectedSpaceBetween),
     ) {
         itemsIndexed(labels) { i, label ->
-            val shapes = when (i) {
-                0 -> ButtonGroupDefaults.connectedLeadingButtonShapes()
-                labels.lastIndex -> ButtonGroupDefaults.connectedTrailingButtonShapes()
-                else -> ButtonGroupDefaults.connectedMiddleButtonShapes()
-            }
-            ToggleButton(
-                checked = i == selected,
-                onCheckedChange = { onSelect(i) },
-                shapes = shapes,
-                contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 16.dp),
-                modifier = Modifier.semantics { role = Role.RadioButton },
-            ) {
-                Text(label, maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.labelLarge)
+            if (i in highlighted) {
+                // Drawn by hand, in the tertiary colours, with the same shapes as the connected buttons.
+                val on = i == selected
+                val big = 20.dp
+                val small = 6.dp
+                val shape = when {
+                    on -> androidx.compose.foundation.shape.RoundedCornerShape(50)
+                    i == 0 -> androidx.compose.foundation.shape.RoundedCornerShape(big, small, small, big)
+                    i == labels.lastIndex -> androidx.compose.foundation.shape.RoundedCornerShape(small, big, big, small)
+                    else -> androidx.compose.foundation.shape.RoundedCornerShape(small)
+                }
+                Surface(
+                    onClick = { onSelect(i) },
+                    shape = shape,
+                    color = if (on) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.tertiaryContainer,
+                    contentColor = if (on) MaterialTheme.colorScheme.onTertiary else MaterialTheme.colorScheme.onTertiaryContainer,
+                    modifier = Modifier.heightIn(min = 40.dp).semantics { role = Role.RadioButton },
+                ) {
+                    Box(Modifier.padding(horizontal = 16.dp, vertical = 10.dp), contentAlignment = Alignment.Center) {
+                        Text(label, maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.labelLarge)
+                    }
+                }
+            } else {
+                val shapes = when (i) {
+                    0 -> ButtonGroupDefaults.connectedLeadingButtonShapes()
+                    labels.lastIndex -> ButtonGroupDefaults.connectedTrailingButtonShapes()
+                    else -> ButtonGroupDefaults.connectedMiddleButtonShapes()
+                }
+                ToggleButton(
+                    checked = i == selected,
+                    onCheckedChange = { onSelect(i) },
+                    shapes = shapes,
+                    contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 16.dp),
+                    modifier = Modifier.semantics { role = Role.RadioButton },
+                ) {
+                    Text(label, maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.labelLarge)
+                }
             }
         }
     }

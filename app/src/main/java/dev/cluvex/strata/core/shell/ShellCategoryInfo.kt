@@ -12,27 +12,37 @@ import kotlin.random.Random
 @Serializable
 data class ShellCategoryInfo(val name: String, val description: String = "", val color: Int = 0) {
     companion object {
-        private val PALETTE = intArrayOf(
-            0xFFE5484D.toInt(), // red
-            0xFF3E9BD6.toInt(), // blue
-            0xFF30A46C.toInt(), // green
-            0xFFF5A524.toInt(), // amber
-            0xFF8E4EC6.toInt(), // purple
-            0xFF12A594.toInt(), // teal
-            0xFFE93D82.toInt(), // pink
-            0xFFF76B15.toInt(), // orange
-            0xFF6E56CF.toInt(), // indigo
-            0xFF8DB600.toInt(), // lime
-        )
+        /** A pleasant colour of the given hue (degrees): clearly coloured, neither too pale nor too dark. */
+        private fun hueColor(hue: Float, saturation: Float = 0.68f, value: Float = 0.88f): Int =
+            android.graphics.Color.HSVToColor(floatArrayOf(Math.floorMod(hue.toInt(), 360).toFloat(), saturation, value))
 
-        /** A colour for a new category: one from the palette that no other category uses yet, else any of them. */
+        private fun hueOf(color: Int): Float {
+            val hsv = FloatArray(3)
+            android.graphics.Color.colorToHSV(color, hsv)
+            return hsv[0]
+        }
+
+        /** Distance between two hues on the colour wheel, 0 to 180 degrees. */
+        private fun hueGap(a: Float, b: Float): Float {
+            val d = Math.abs(a - b) % 360f
+            return if (d > 180f) 360f - d else d
+        }
+
+        /**
+         * A colour for a new category: any hue, so there is no fixed list. Of several random candidates it takes the one whose
+         * hue is furthest from the colours in [used], so a new category does not look like an existing one.
+         */
         fun randomColor(used: Collection<Int> = emptyList()): Int {
-            val free = PALETTE.filter { it !in used }
-            return (free.ifEmpty { PALETTE.toList() }).random(Random.Default)
+            val usedHues = used.map { hueOf(it) }
+            val candidates = List(12) {
+                hueColor(Random.nextFloat() * 360f, Random.nextFloat() * 0.25f + 0.55f, Random.nextFloat() * 0.15f + 0.8f)
+            }
+            if (usedHues.isEmpty()) return candidates.first()
+            return candidates.maxByOrNull { c -> val h = hueOf(c); usedHues.minOf { hueGap(h, it) } } ?: candidates.first()
         }
 
         /** The colour shown for a category that has none stored (e.g. made before colours existed): stable for its name. */
-        fun fallbackColor(name: String): Int = PALETTE[Math.floorMod(name.hashCode(), PALETTE.size)]
+        fun fallbackColor(name: String): Int = hueColor(Math.floorMod(name.hashCode(), 360).toFloat())
 
         /** One entry of a "shellCategories" list: an object with a name, or (older files) just the name. */
         fun parse(element: JsonElement): ShellCategoryInfo? = when (element) {
