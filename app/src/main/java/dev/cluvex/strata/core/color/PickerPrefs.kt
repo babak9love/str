@@ -7,16 +7,19 @@ object PickerPrefs {
     val ZOOMS = listOf(1, 2, 4, 8, 16, 32)
     val STEPS = listOf(1, 2, 5, 10)
 
-    enum class AutoCopy { OFF, HEX, RGB, HSL }
+    /** Same order as [PixelColor.formats]: every option after OFF copies the format at index ordinal - 1. */
+    enum class AutoCopy(val label: String) {
+        OFF("Off"), HEX("HEX"), RGB("RGB"), HSL("HSL"), HSV("HSV"), CMYK("CMYK"), LAB("CIE LAB"), DECIMAL("Decimal"),
+    }
 
-    data class Settings(val zoom: Int = 8, val step: Int = 1, val autoCopy: AutoCopy = AutoCopy.OFF) {
+    data class Settings(val zoom: Int = 1, val step: Int = 5, val autoCopy: AutoCopy = AutoCopy.OFF) {
         fun encode(): String = "$zoom,$step,${autoCopy.name}"
     }
 
     fun decodeSettings(text: String?): Settings {
         val parts = text.orEmpty().split(',')
-        val zoom = parts.getOrNull(0)?.trim()?.toIntOrNull()?.takeIf { it in ZOOMS } ?: 8
-        val step = parts.getOrNull(1)?.trim()?.toIntOrNull()?.takeIf { it in STEPS } ?: 1
+        val zoom = parts.getOrNull(0)?.trim()?.toIntOrNull()?.takeIf { it in ZOOMS } ?: 1
+        val step = parts.getOrNull(1)?.trim()?.toIntOrNull()?.takeIf { it in STEPS } ?: 5
         val copy = AutoCopy.entries.firstOrNull { it.name == parts.getOrNull(2)?.trim() } ?: AutoCopy.OFF
         return Settings(zoom, step, copy)
     }

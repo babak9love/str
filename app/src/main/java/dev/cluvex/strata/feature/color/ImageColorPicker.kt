@@ -251,12 +251,7 @@ fun ImageColorPicker(file: File, onClose: () -> Unit) {
         ps.hover = at
         ps.marker = at
         scope.launch { repo.pushPickHistory(argb) }
-        val index = when (settings.autoCopy) {
-            PickerPrefs.AutoCopy.OFF -> null
-            PickerPrefs.AutoCopy.HEX -> 0
-            PickerPrefs.AutoCopy.RGB -> 1
-            PickerPrefs.AutoCopy.HSL -> 2
-        }
+        val index = if (settings.autoCopy == PickerPrefs.AutoCopy.OFF) null else settings.autoCopy.ordinal - 1
         if (index != null) {
             val (r, g, b) = channels(argb)
             val text = PixelColor.formats(r, g, b)[index].text
@@ -652,7 +647,7 @@ private fun SettingsSheet(settings: PickerPrefs.Settings, onChange: (PickerPrefs
                     FilterChip(
                         selected = settings.autoCopy == m,
                         onClick = { onChange(settings.copy(autoCopy = m)) },
-                        label = { Text(if (m == PickerPrefs.AutoCopy.OFF) stringResource(R.string.picker_off) else m.name) },
+                        label = { Text(if (m == PickerPrefs.AutoCopy.OFF) stringResource(R.string.picker_off) else m.label) },
                     )
                 }
             }
