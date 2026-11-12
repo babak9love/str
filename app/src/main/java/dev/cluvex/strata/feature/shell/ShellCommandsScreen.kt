@@ -1421,8 +1421,6 @@ private fun EditCommandDialog(
                                 // Tapping the chosen tile again clears the choice (0 = no tile).
                                 selected = slots.indexOf(tile),
                                 onSelect = { i -> tile = if (tile == slots[i]) 0 else slots[i] },
-                                // A slot another command already holds is highlighted and shows that command's name.
-                                highlighted = slots.mapIndexedNotNull { i, n -> if (takenTiles[n] != null) i else null }.toSet(),
                             )
                         }
                         // Pinning only exists for a saved command (a new one has no id yet).

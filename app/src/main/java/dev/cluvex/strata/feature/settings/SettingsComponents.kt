@@ -345,8 +345,6 @@ fun ScrollableConnectedChoice(
     onSelect: (Int) -> Unit,
     modifier: Modifier = Modifier,
     state: androidx.compose.foundation.lazy.LazyListState = androidx.compose.foundation.lazy.rememberLazyListState(),
-    /** Indexes drawn in the tertiary colours (e.g. a slot another command already holds). */
-    highlighted: Set<Int> = emptySet(),
 ) {
     androidx.compose.foundation.lazy.LazyRow(
         state = state,
@@ -363,12 +361,6 @@ fun ScrollableConnectedChoice(
                 checked = i == selected,
                 onCheckedChange = { onSelect(i) },
                 shapes = shapes,
-                colors = if (i in highlighted) androidx.compose.material3.ToggleButtonDefaults.toggleButtonColors(
-                    containerColor = MaterialTheme.colorScheme.tertiaryContainer,
-                    contentColor = MaterialTheme.colorScheme.onTertiaryContainer,
-                    checkedContainerColor = MaterialTheme.colorScheme.tertiary,
-                    checkedContentColor = MaterialTheme.colorScheme.onTertiary,
-                ) else androidx.compose.material3.ToggleButtonDefaults.toggleButtonColors(),
                 contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 16.dp),
                 modifier = Modifier.semantics { role = Role.RadioButton },
             ) {
