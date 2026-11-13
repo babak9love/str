@@ -87,6 +87,7 @@ enum class SheetAction(@StringRes val label: Int, val group: SheetGroup) {
     PROPERTIES(R.string.model_selection_properties, SheetGroup.ORGANIZE),
     AUDIO_INFO(R.string.model_sheet_audio_info, SheetGroup.OPEN),
     VIDEO_INFO(R.string.model_sheet_video_info, SheetGroup.OPEN),
+    PLUGINS(R.string.model_sheet_plugins, SheetGroup.TOOLS),
 }
 
 data class BrowseContext(val clipboard: Boolean, val termux: Boolean, val project: Boolean, val undo: Boolean = true, val dual: Boolean = true)
@@ -147,7 +148,7 @@ val SelectionAction.hint: Int?
 @get:StringRes
 val SheetAction.hint: Int?
     get() = when (this) {
-        SheetAction.OPEN_WITH, SheetAction.SHARE, SheetAction.HEX, SheetAction.CHECKSUM -> R.string.model_hint_files
+        SheetAction.OPEN_WITH, SheetAction.SHARE, SheetAction.HEX, SheetAction.CHECKSUM, SheetAction.PLUGINS -> R.string.model_hint_files
         SheetAction.OPEN_AS_TEXT -> R.string.model_hint_not_text
         SheetAction.VIEW -> R.string.model_hint_archives
         SheetAction.APK_INFO -> R.string.model_hint_apks
@@ -196,7 +197,7 @@ fun SelectionAction.available(c: SelectionContext): Boolean = when (this) {
 
 fun SheetAction.available(c: SheetContext): Boolean = when (this) {
     SheetAction.OPEN, SheetAction.RENAME, SheetAction.SELECT -> true
-    SheetAction.OPEN_WITH, SheetAction.SHARE, SheetAction.HEX, SheetAction.CHECKSUM -> c.file
+    SheetAction.OPEN_WITH, SheetAction.SHARE, SheetAction.HEX, SheetAction.CHECKSUM, SheetAction.PLUGINS -> c.file
     SheetAction.OPEN_AS_TEXT -> c.file && !c.textEditable
     SheetAction.VIEW -> c.file && c.archiveViewable
     SheetAction.APK_INFO -> c.apk
@@ -325,7 +326,7 @@ data class ActionLayout(
         val DEFAULT_SHEET = Zoned(
             listOf(
                 listOf(SheetAction.OPEN_WITH, SheetAction.OPEN_AS_TEXT, SheetAction.RENAME, SheetAction.SHARE),
-                listOf(SheetAction.AUDIO_INFO, SheetAction.VIDEO_INFO, SheetAction.APK_INFO, SheetAction.COMPRESS, SheetAction.EXTRACT, SheetAction.HEX, SheetAction.VIEW, SheetAction.SIGN_APK, SheetAction.SMALI_TO_DEX, SheetAction.JAR_TO_DEX, SheetAction.CHECKSUM, SheetAction.BOOKMARK, SheetAction.PROTECT, SheetAction.PROPERTIES),
+                listOf(SheetAction.AUDIO_INFO, SheetAction.VIDEO_INFO, SheetAction.APK_INFO, SheetAction.COMPRESS, SheetAction.EXTRACT, SheetAction.HEX, SheetAction.VIEW, SheetAction.SIGN_APK, SheetAction.SMALI_TO_DEX, SheetAction.JAR_TO_DEX, SheetAction.CHECKSUM, SheetAction.PLUGINS, SheetAction.BOOKMARK, SheetAction.PROTECT, SheetAction.PROPERTIES),
                 listOf(SheetAction.OPEN, SheetAction.RESTORE, SheetAction.LINK, SheetAction.CIPHER, SheetAction.VAULT, SheetAction.SPLIT, SheetAction.SELECT),
             ),
         )

@@ -33,6 +33,7 @@ import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.rounded.DriveFileRenameOutline
 import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.EnhancedEncryption
+import androidx.compose.material.icons.rounded.Extension
 import androidx.compose.material.icons.rounded.Explore
 import androidx.compose.material.icons.rounded.FileOpen
 import androidx.compose.material.icons.rounded.Fingerprint
@@ -139,4 +140,5 @@ val SheetAction.icon: ImageVector
         SheetAction.PROPERTIES -> Icons.Rounded.Info
         SheetAction.AUDIO_INFO -> Icons.Rounded.Audiotrack
         SheetAction.VIDEO_INFO -> Icons.Rounded.Movie
+        SheetAction.PLUGINS -> Icons.Rounded.Extension
     }

@@ -71,6 +71,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import dev.cluvex.strata.feature.plugin.PluginRunViewModel
+import dev.cluvex.strata.feature.plugin.PluginRunner
 import dev.cluvex.strata.R
 import dev.cluvex.strata.core.i18n.tr
 import dev.cluvex.strata.core.fs.Mounts
@@ -614,6 +616,12 @@ fun ExplorerScreen(
         )
     }
 
+    val pluginVm: PluginRunViewModel = viewModel()
+    PluginRunner(pluginVm) { ready, replace ->
+        val source = pluginVm.item
+        if (source == null) pluginVm.discard(ready.file)
+        else vm.savePluginResult(source, ready.file, ready.name, replace) { pluginVm.discard(ready.file) }
+    }
     when (val d = dialog) {
         Dialog.None -> Unit
         is Dialog.NewFolder -> InputDialog(
@@ -833,6 +841,7 @@ fun ExplorerScreen(
                 onProperties = { localOnly(d.item) { dialog = Dialog.Properties(listOf(d.item)) } },
                 onAudioInfo = { localOnly(d.item) { dialog = Dialog.MediaInfo(d.item, MediaInfoKind.AUDIO) } },
                 onVideoInfo = { localOnly(d.item) { dialog = Dialog.MediaInfo(d.item, MediaInfoKind.VIDEO) } },
+                onPlugins = { dialog = Dialog.None; pluginVm.begin(d.item) { vm.openInput(d.item) } },
                 onDelete = {
                     vm.setActive(d.pane)
                     vm.clearSelection(d.pane)
