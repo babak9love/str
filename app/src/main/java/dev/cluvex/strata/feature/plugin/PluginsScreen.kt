@@ -1,6 +1,10 @@
 package dev.cluvex.strata.feature.plugin
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -12,6 +16,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.Extension
+import androidx.compose.material.icons.rounded.ExpandMore
 import androidx.compose.material3.Card
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -26,6 +31,11 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -137,39 +147,68 @@ private fun Section(title: String, body: String) {
     }
 }
 
+/** Closed: name, short description and "Forget trust". Open: the full details (package, extensions, trust, signature). */
 @Composable
 private fun PluginCard(p: PluginInfo, pins: PluginPins, onForget: () -> Unit) {
     val trust = pins.trust(p)
-    Card(Modifier.fillMaxWidth().testTag("plugin-card-${p.packageName}")) {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+    var open by rememberSaveable(p.packageName) { mutableStateOf(false) }
+    val rotation by animateFloatAsState(if (open) 180f else 0f, label = "plugin-chevron")
+    Card(Modifier.fillMaxWidth().animateContentSize().testTag("plugin-card-${p.packageName}")) {
+        Column(Modifier.padding(start = 16.dp, end = 8.dp, top = 8.dp, bottom = 4.dp)) {
+            Row(
+                Modifier.fillMaxWidth()
+                    .clickable(onClickLabel = stringResource(if (open) R.string.plugin_collapse else R.string.plugin_expand), role = Role.Button) { open = !open }
+                    .padding(vertical = 8.dp)
+                    .padding(end = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
                 Icon(Icons.Rounded.Extension, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
                 Column(Modifier.weight(1f)) {
-                    Text(p.label, style = MaterialTheme.typography.titleMedium)
-                    p.description?.let { Text(it, style = MaterialTheme.typography.bodyMedium) }
+                    Text(p.label, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    p.description?.let {
+                        Text(
+                            it,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = if (open) Int.MAX_VALUE else 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+                    // A changed signature is the one warning that must not hide in a closed card.
+                    if (trust == PluginTrust.CHANGED && !open) {
+                        Text(stringResource(R.string.plugin_status_changed), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.error)
+                    }
+                }
+                Icon(Icons.Rounded.ExpandMore, contentDescription = null, modifier = Modifier.rotate(rotation), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            AnimatedVisibility(open) {
+                Column(Modifier.padding(start = 36.dp, bottom = 4.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text(p.packageName, style = MaterialTheme.typography.bodySmall, fontFamily = FontFamily.Monospace, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(
+                        p.extensions?.sorted()?.joinToString(", ") { ".$it" } ?: stringResource(R.string.plugin_any_file),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    if (p.api > PluginProtocol.API) {
+                        Text(stringResource(R.string.plugin_newer_api, p.api), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
+                    }
+                    Text(
+                        when (trust) {
+                            PluginTrust.NEW -> stringResource(R.string.plugin_status_new)
+                            PluginTrust.TRUSTED -> stringResource(R.string.plugin_status_trusted)
+                            PluginTrust.CHANGED -> stringResource(R.string.plugin_status_changed)
+                        },
+                        style = MaterialTheme.typography.labelMedium,
+                        color = if (trust == PluginTrust.CHANGED) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
+                    )
+                    Fingerprint(stringResource(R.string.plugin_signed_by), p.signer, "plugin-signer-${p.packageName}")
                 }
             }
-            Text(p.packageName, style = MaterialTheme.typography.bodySmall, fontFamily = FontFamily.Monospace, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Text(
-                p.extensions?.sorted()?.joinToString(", ") { ".$it" } ?: stringResource(R.string.plugin_any_file),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            if (p.api > PluginProtocol.API) {
-                Text(stringResource(R.string.plugin_newer_api, p.api), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
-            }
-            Text(
-                when (trust) {
-                    PluginTrust.NEW -> stringResource(R.string.plugin_status_new)
-                    PluginTrust.TRUSTED -> stringResource(R.string.plugin_status_trusted)
-                    PluginTrust.CHANGED -> stringResource(R.string.plugin_status_changed)
-                },
-                style = MaterialTheme.typography.labelMedium,
-                color = if (trust == PluginTrust.CHANGED) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
-            )
-            Fingerprint(stringResource(R.string.plugin_signed_by), p.signer, "plugin-signer-${p.packageName}")
             if (trust != PluginTrust.NEW) {
-                TextButton(onClick = onForget) { Text(stringResource(R.string.plugin_forget_trust)) }
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                    TextButton(onClick = onForget) { Text(stringResource(R.string.plugin_forget_trust)) }
+                }
             }
         }
     }
