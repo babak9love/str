@@ -322,4 +322,6 @@
     <string name="explorer_protected_inside_many">\"%1$s\" contains %2$d protected folders, so it can’t be deleted.</string>
     <string name="explorer_protected_self_inside_one">\"%1$s\" is protected and also contains the protected folder \"%2$s\".</string>
     <string name="explorer_protected_self_inside_many">\"%1$s\" is protected and also contains %2$d protected folders.</string>
+    <string name="file_task_channel">File operations</string>
+    <string name="file_task_notif_many">%1$d file operations running</string>
 </resources>

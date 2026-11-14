@@ -160,13 +160,17 @@ class ExplorerViewModel(
 
     private val renameInfo = AndroidRenameInfo(app)
 
+    /** Tells apart the screens (ViewModels) that share the file-task scope, see [FileTaskKeeper.finished]. */
+    private val owner = FileTaskKeeper.newOwner()
+
     init {
         // The clipboard lives in memory only, so staged archive files left by an earlier run are never needed again.
-        viewModelScope.launch(Dispatchers.IO) {
-            val cache = getApplication<Application>().cacheDir
-            FsUtil.deleteRecursively(File(cache, "archive-clip"))
-            FsUtil.deleteRecursively(File(cache, "shared"))
-        }
+        // A task that is still reading one (tasks outlive the screen) has pinned it and keeps it.
+        cleanStagedArchive()
+        // File tasks run in FileTaskKeeper's scope and go on after this screen is gone: show the one that is running,
+        // and refresh the listing when one that another (closed) screen started finishes.
+        viewModelScope.launch { FileTaskKeeper.task.collect { t -> _state.update { it.copy(task = t) } } }
+        viewModelScope.launch { FileTaskKeeper.finished.collect { from -> if (from != owner) refreshAll() } }
         viewModelScope.launch {
             var previousRoot: Boolean? = null
             settingsRepo.settings.collect { s ->
@@ -738,12 +742,7 @@ class ExplorerViewModel(
         UiSounds.play(UiSound.POP)
     }
 
-    /**
-     * Staged folders (archive-clip / shared) that a running extract or compress, or a pending password prompt, still
-     * reads from. Dropping the clipboard entry must not delete them: the task starts after the entry is gone.
-     */
-    private val stagedPins = HashMap<String, Int>()
-
+    /** The staged folder (archive-clip/<n> or shared/<n>) that [path] is inside, or null for any other path. */
     private fun stagedDirOf(path: String): String? {
         val cache = getApplication<Application>().cacheDir
         for (name in listOf("archive-clip", "shared")) {
@@ -1682,14 +1681,21 @@ class ExplorerViewModel(
         sound: UiSound? = null,
         onDone: (OpProgress.Finished) -> Unit,
     ) {
-        viewModelScope.launch {
-            _state.update { it.copy(task = TaskState(title = title, indeterminate = true)) }
+        // Not viewModelScope: closing the screen (swiping the app out of recents) clears the ViewModel, which would cancel
+        // the task. FileTaskKeeper's scope lives as long as the process, and its foreground service keeps that alive.
+        FileTaskKeeper.scope.launch {
+            val keepAlive = FileTaskKeeper.begin(getApplication<Application>(), title)
+            FileTaskKeeper.setTask(TaskState(title = title, indeterminate = true))
             try {
                 withContext(Dispatchers.IO) { work() }.collect { p ->
                     when (p) {
-                        is OpProgress.Running -> _state.update { it.copy(task = taskState(title, p)) }
+                        is OpProgress.Running -> {
+                            val t = taskState(title, p)
+                            FileTaskKeeper.setTask(t)
+                            FileTaskKeeper.update(keepAlive, t.fraction, t.indeterminate)
+                        }
                         is OpProgress.Finished -> {
-                            _state.update { it.copy(task = null) }
+                            FileTaskKeeper.setTask(null)
                             if (p.moves.isNotEmpty() && _state.value.settings.protectedFolders.isNotEmpty()) handleProtectedMoves(p)
                             if (sound == null) {
                                 UiSounds.forTask(title, failed = p.failed.isNotEmpty(), okCount = p.okCount)
@@ -1716,8 +1722,10 @@ class ExplorerViewModel(
                 }
                 refreshAll()
             } finally {
-                _state.update { it.copy(task = null) }
+                FileTaskKeeper.setTask(null)
+                FileTaskKeeper.end(keepAlive)
                 onFinally()
+                FileTaskKeeper.finished.tryEmit(owner)
             }
         }
     }
@@ -1954,3 +1962,10 @@ class ExplorerViewModel(
         }
     }
 }
+
+/**
+ * Staged folders (archive-clip / shared) that a running extract or compress, or a pending password prompt, still reads
+ * from. Process-wide, not per ViewModel: a task outlives the screen that started it, and the next screen must not
+ * delete what that task is still reading.
+ */
+private val stagedPins = HashMap<String, Int>()

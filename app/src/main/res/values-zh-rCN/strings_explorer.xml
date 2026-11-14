@@ -307,4 +307,6 @@
     <string name="explorer_protected_inside_many">“%1$s”包含 %2$d 个受保护的文件夹，无法删除。</string>
     <string name="explorer_protected_self_inside_one">“%1$s”已受保护，并且还包含受保护的文件夹“%2$s”。</string>
     <string name="explorer_protected_self_inside_many">“%1$s”已受保护，并且还包含 %2$d 个受保护的文件夹。</string>
+    <string name="file_task_channel">文件操作</string>
+    <string name="file_task_notif_many">正在进行 %1$d 项文件操作</string>
 </resources>

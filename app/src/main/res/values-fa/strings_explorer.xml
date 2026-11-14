@@ -322,4 +322,6 @@
     <string name="explorer_protected_inside_many">«%1$s» شامل %2$d پوشه‌ی محافظت‌شده است و حذف نمی‌شود.</string>
     <string name="explorer_protected_self_inside_one">«%1$s» محافظت‌شده است و پوشه‌ی محافظت‌شده‌ی «%2$s» را هم دارد.</string>
     <string name="explorer_protected_self_inside_many">«%1$s» محافظت‌شده است و %2$d پوشه‌ی محافظت‌شده هم دارد.</string>
+    <string name="file_task_channel">عملیات فایل</string>
+    <string name="file_task_notif_many">%1$d عملیات فایل در حال اجرا</string>
 </resources>

@@ -349,4 +349,6 @@
     <string name="explorer_protected_inside_many">«%1$s» содержит защищённых папок: %2$d, поэтому её нельзя удалить.</string>
     <string name="explorer_protected_self_inside_one">«%1$s» защищена и также содержит защищённую папку «%2$s».</string>
     <string name="explorer_protected_self_inside_many">«%1$s» защищена и также содержит защищённых папок: %2$d.</string>
+    <string name="file_task_channel">Операции с файлами</string>
+    <string name="file_task_notif_many">Выполняется операций с файлами: %1$d</string>
 </resources>
