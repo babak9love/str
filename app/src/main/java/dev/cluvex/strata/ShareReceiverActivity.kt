@@ -37,7 +37,14 @@ class ShareReceiverActivity : ComponentActivity() {
             if (uris.size == 1) putExtra(Intent.EXTRA_STREAM, uris[0]) else putParcelableArrayListExtra(Intent.EXTRA_STREAM, ArrayList(uris))
             mode?.let { putExtra(IncomingShare.EXTRA_MODE, it.name) }
             clipData = ClipData.newRawUri(null, uris[0]).also { clip -> uris.drop(1).forEach { clip.addItem(ClipData.Item(it)) } }
-            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK)
+            // SINGLE_TOP + CLEAR_TOP: when Strata's task already exists the system only brings it to the front and
+            // drops the intent (START_TASK_TO_FRONT) unless it is delivered to the existing MainActivity via onNewIntent.
+            addFlags(
+                Intent.FLAG_GRANT_READ_URI_PERMISSION or
+                    Intent.FLAG_ACTIVITY_NEW_TASK or
+                    Intent.FLAG_ACTIVITY_SINGLE_TOP or
+                    Intent.FLAG_ACTIVITY_CLEAR_TOP,
+            )
         }
         startActivity(forward)
         finish()

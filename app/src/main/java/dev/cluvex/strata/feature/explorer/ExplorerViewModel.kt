@@ -738,7 +738,36 @@ class ExplorerViewModel(
         UiSounds.play(UiSound.POP)
     }
 
-    /** Deletes staged files (from archives and from other apps' shares) that no queued copy/cut refers to any more. */
+    /**
+     * Staged folders (archive-clip / shared) that a running extract or compress, or a pending password prompt, still
+     * reads from. Dropping the clipboard entry must not delete them: the task starts after the entry is gone.
+     */
+    private val stagedPins = HashMap<String, Int>()
+
+    private fun stagedDirOf(path: String): String? {
+        val cache = getApplication<Application>().cacheDir
+        for (name in listOf("archive-clip", "shared")) {
+            val prefix = File(cache, name).path + "/"
+            if (path.startsWith(prefix)) return prefix + path.removePrefix(prefix).substringBefore('/')
+        }
+        return null
+    }
+
+    private fun pinStaged(paths: Collection<String>) = synchronized(stagedPins) {
+        paths.mapNotNull(::stagedDirOf).distinct().forEach { stagedPins[it] = (stagedPins[it] ?: 0) + 1 }
+    }
+
+    private fun unpinStaged(paths: Collection<String>) {
+        synchronized(stagedPins) {
+            paths.mapNotNull(::stagedDirOf).distinct().forEach { dir ->
+                val left = (stagedPins[dir] ?: 0) - 1
+                if (left <= 0) stagedPins.remove(dir) else stagedPins[dir] = left
+            }
+        }
+        cleanStagedArchive()
+    }
+
+    /** Deletes staged files (from archives and from other apps' shares) that no queued copy/cut or running task refers to. */
     private fun cleanStagedArchive() {
         val cache = getApplication<Application>().cacheDir
         val inUse = _state.value.clipboards.flatMap { c -> c.items.map { it.path } }
@@ -746,7 +775,8 @@ class ExplorerViewModel(
             for (name in listOf("archive-clip", "shared")) {
                 File(cache, name).listFiles()?.forEach { dir ->
                     val prefix = dir.path + "/"
-                    if (inUse.none { it.startsWith(prefix) }) FsUtil.deleteRecursively(dir)
+                    val pinned = synchronized(stagedPins) { stagedPins.containsKey(dir.path) }
+                    if (!pinned && inUse.none { it.startsWith(prefix) }) FsUtil.deleteRecursively(dir)
                 }
             }
         }
@@ -1095,6 +1125,9 @@ class ExplorerViewModel(
         if (_state.value.isRemote(pane)) return notOnStorage()
         val ps = _state.value.pane(pane)
         val destParent = ps.path
+        // The archive may be a staged copy of a shared file: keep it until the extraction (or the password retry) is over.
+        pinStaged(listOf(item.path))
+        var passwordAsked = false
         runTask(tr(R.string.explorer_task_extracting), {
             val from = access(item.parentPath ?: destParent, write = false, viaRoot = ps.viaRoot)
             val to = access(destParent, write = true, viaRoot = ps.viaRoot)
@@ -1103,11 +1136,15 @@ class ExplorerViewModel(
             ArchiveManager.extract(item.path, dest.absolutePath, from, to, password)
         }, onError = { e ->
             when (e) {
-                is PasswordRequiredException -> true.also { askPassword(pane, item, PasswordPurpose.EXTRACT, wrong = false) }
-                is WrongPasswordException -> true.also { askPassword(pane, item, PasswordPurpose.EXTRACT, wrong = true) }
+                is PasswordRequiredException -> true.also { passwordAsked = true; askPassword(pane, item, PasswordPurpose.EXTRACT, wrong = false) }
+                is WrongPasswordException -> true.also { passwordAsked = true; askPassword(pane, item, PasswordPurpose.EXTRACT, wrong = true) }
                 else -> false
             }
-        }, onFinally = { password?.fill('\u0000') }, sound = UiSound.LAND) { done ->
+        }, onFinally = {
+            password?.fill('\u0000')
+            // With a password prompt open the pin now belongs to the prompt (released on submit or cancel).
+            if (!passwordAsked) unpinStaged(listOf(item.path))
+        }, sound = UiSound.LAND) { done ->
             clearSelection(pane)
             refreshAllRevealing(destParent, done.created)
         }
@@ -1124,6 +1161,9 @@ class ExplorerViewModel(
                 return
             }
         }
+        // Items shared from another app are staged in the cache: keep them until the archive is written.
+        val sources = items.map { it.path }
+        pinStaged(sources)
         runTask(tr(R.string.explorer_task_compressing), {
             val from = access(ps.path, write = false, viaRoot = ps.viaRoot)
             val to = access(ps.path, write = true, viaRoot = ps.viaRoot)
@@ -1133,7 +1173,10 @@ class ExplorerViewModel(
                 val dest = FsUtil.uniqueSibling(to.child(to.file(ps.path), fileName), isDirectory = false, access = to)
                 ArchiveCreator.create(items, dest.absolutePath, options, from, to)
             }
-        }, onFinally = { options.password?.fill('\u0000') }, sound = UiSound.SUCCESS) { done ->
+        }, onFinally = {
+            options.password?.fill('\u0000')
+            unpinStaged(sources)
+        }, sound = UiSound.SUCCESS) { done ->
             clearSelection(pane)
             refreshAllRevealing(ps.path, done.created)
         }
@@ -1251,13 +1294,22 @@ class ExplorerViewModel(
 
     private fun defaultSigningKey(): SigningKey = SigningKeys.default(getApplication<Application>().filesDir)
 
-    fun dismissPasswordPrompt() = _state.update { it.copy(passwordPrompt = null) }
+    /** Cancels the password prompt; a staged archive kept for the retry is released. */
+    fun dismissPasswordPrompt() {
+        val prompt = _state.value.passwordPrompt
+        _state.update { it.copy(passwordPrompt = null) }
+        if (prompt?.purpose == PasswordPurpose.EXTRACT) unpinStaged(listOf(prompt.item.path))
+    }
 
     fun submitPassword(password: CharArray) {
         val prompt = _state.value.passwordPrompt ?: return
-        dismissPasswordPrompt()
+        _state.update { it.copy(passwordPrompt = null) }
         when (prompt.purpose) {
-            PasswordPurpose.EXTRACT -> extractArchive(prompt.pane, prompt.item, password)
+            // The retry pins the archive itself before the prompt's pin is released, so it is never unprotected.
+            PasswordPurpose.EXTRACT -> {
+                extractArchive(prompt.pane, prompt.item, password)
+                unpinStaged(listOf(prompt.item.path))
+            }
             PasswordPurpose.DECRYPT -> decryptFile(prompt.pane, prompt.item, password)
         }
     }
@@ -1509,7 +1561,6 @@ class ExplorerViewModel(
      */
     fun stageShared(uris: List<Uri>, mode: ShareMode? = null) = viewModelScope.launch {
         val app = getApplication<Application>()
-        postMessage(tr(R.string.explorer_shared_copying))
         val files = withContext(Dispatchers.IO) {
             val root = File(app.cacheDir, "shared/${System.nanoTime()}")
             uris.mapIndexedNotNull { index, uri ->
@@ -1531,11 +1582,8 @@ class ExplorerViewModel(
         addClip(ClipboardState(items, false, sourceDir = items.first().parentPath ?: "/", shareMode = mode))
         cleanStagedArchive()
         UiSounds.play(UiSound.POP)
-        // Always say how it went: nothing visible used to happen when the clipboard was filled (or when part of it failed).
-        postMessage(
-            if (files.size == uris.size) trPlural(R.plurals.explorer_shared_to_clipboard, files.size, files.size)
-            else tr(R.string.explorer_shared_partial, files.size, uris.size),
-        )
+        // Success is silent; only a partial failure is reported.
+        if (files.size != uris.size) postMessage(tr(R.string.explorer_shared_partial, files.size, uris.size))
     }
 
     fun consumeIncoming(seq: Int) = _state.update { if (it.incoming?.seq == seq) it.copy(incoming = null) else it }
