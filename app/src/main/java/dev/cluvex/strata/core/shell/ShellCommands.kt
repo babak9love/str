@@ -217,15 +217,28 @@ object ShellRunner {
         return r.backend != null && r.output.trim() == "1"
     }
 
+    /**
+     * Shell snippet that defines `__stop PID [GRACE_SECONDS]`: TERM to the process group and to every descendant of PID,
+     * then KILL to whatever is still alive after the grace time (1 s by default). A caller that is itself a descendant
+     * of PID (the in-script watchdog) sets `__x` to its own pid so it does not kill itself half way. Walking the descendants matters because tools such as `timeout` move
+     * themselves (and their child, e.g. `logcat`) into a process group of their own, which a group kill never reaches.
+     */
+    private const val STOP_TREE =
+        "__d() { grep -s -H '^PPid:' /proc/[0-9]*/status 2>/dev/null | while read a b; do " +
+            "[ \"\$b\" = \"\$1\" ] && { c=\${a#/proc/}; c=\${c%%/*}; echo \$c; __d \$c; }; done; }; " +
+            "__stop() { __l=\"\$1 \$(__d \$1)\"; kill -s TERM -- -\$1 2>/dev/null; " +
+            "for x in \$__l; do [ \"\$x\" = \"\$__x\" ] || kill -s TERM \$x 2>/dev/null; done; sleep \${2:-1}; " +
+            "for x in \$__l; do if [ \"\$x\" != \"\$__x\" ] && kill -0 \$x 2>/dev/null; then kill -s KILL \$x 2>/dev/null; fi; done; " +
+            "if [ -z \"\$__x\" ] && kill -0 \$1 2>/dev/null; then kill -s KILL -- -\$1 2>/dev/null; fi; }; "
+
     /** Stops the background process (and its children): TERM first, then KILL if it is still alive. */
     suspend fun stopDetached(id: String, mode: ShellMode): Boolean {
         val pid = detachedPidPath(id)
         // The time of the stop is saved first, so the log can tell "stopped by hand" from any other end.
-        val cmd = "p=\$(cat '$pid' 2>/dev/null); " +
+        val cmd = STOP_TREE + "p=\$(cat '$pid' 2>/dev/null); " +
             "if [ -n \"\$p\" ] && kill -0 \$p 2>/dev/null; then " +
             "date +%s > '${detachedStoppedPath(id)}'; " +
-            "kill -s TERM -- -\$p 2>/dev/null || kill -s TERM \$p; sleep 1; " +
-            "if kill -0 \$p 2>/dev/null; then kill -s KILL -- -\$p 2>/dev/null || kill -s KILL \$p; fi; " +
+            "__stop \$p; " +
             "echo stopped; else echo idle; fi"
         val r = run(cmd, mode, 15)
         return r.backend != null && r.output.trim().endsWith("stopped")
@@ -276,21 +289,23 @@ object ShellRunner {
                 // Watchdog: the launcher only waits for the start, so the time limit has to live inside the script.
                 // After the limit it sends TERM to the script's whole process group, then KILL two seconds later.
                 // The watchdog ignores TERM itself so it survives long enough to send the KILL.
+                // It stops the script's whole process tree, not just its group: tools such as `timeout` start their
+                // child in a group of their own, which a group kill never reaches.
+                append(STOP_TREE).append('\n')
                 append("__g=\$\$\n")
                 append("(\n")
                 append("trap '' TERM\n")
+                append("__x=\$(sh -c 'echo \$PPID')\n")
                 append("sleep ").append(limit).append("\n")
                 append("echo ").append(limit).append(" > ").append(timeoutFile).append('\n')
-                append("kill -s TERM -- -\$__g 2>/dev/null || kill -s TERM \$__g 2>/dev/null\n")
-                append("sleep 2\n")
-                append("kill -s KILL -- -\$__g 2>/dev/null || kill -s KILL \$__g 2>/dev/null\n")
+                append("__stop \$__g 2\n")
                 append(") >/dev/null 2>&1 &\n")
                 append("__w=\$!\n")
             }
             // On exit (also after an `exit N` in the command) the exit code and run time are saved for the app,
             // and the watchdog, if any, is ended.
             append("trap '__e=\$?; echo \"\$__e \$((\$(date +%s) - __s))\" > ").append(exit).append("; ")
-            if (limit != NO_TIMEOUT) append("kill -s KILL \$__w 2>/dev/null")
+            if (limit != NO_TIMEOUT) append("[ -f ").append(timeoutFile).append(" ] || kill -s KILL \$__w 2>/dev/null")
             append("' EXIT\n")
             append(command.trimEnd('\n', '\r')).append('\n')
             append(delim).append('\n')
@@ -398,6 +413,7 @@ object ShellRunner {
         }
         return listOf(
             "(",
+            STOP_TREE,
             "__c=$quoted",
             "if command -v setsid >/dev/null 2>&1; then",
             "setsid sh -c \"\$__c\" &",
@@ -411,9 +427,7 @@ object ShellRunner {
             "sleep $timeoutSec &",
             "__s=\$!",
             "wait \$__s",
-            "kill -s TERM -- -\$__p 2>/dev/null || kill -s TERM \$__p 2>/dev/null",
-            "sleep 2",
-            "kill -s KILL -- -\$__p 2>/dev/null || kill -s KILL \$__p 2>/dev/null",
+            "__stop \$__p 2",
             ") &",
             "__w=\$!",
             "wait \$__p",
@@ -467,10 +481,9 @@ object ShellRunner {
     suspend fun stopRun(id: String, mode: ShellMode): Boolean {
         stopRequested.add(id)
         val pid = runPidPath(id)
-        val script = "p=\$(cat '$pid' 2>/dev/null); " +
+        val script = STOP_TREE + "p=\$(cat '$pid' 2>/dev/null); " +
             "if [ -n \"\$p\" ] && kill -0 \$p 2>/dev/null; then " +
-            "kill -s TERM -- -\$p 2>/dev/null || kill -s TERM \$p 2>/dev/null; sleep 1; " +
-            "if kill -0 \$p 2>/dev/null; then kill -s KILL -- -\$p 2>/dev/null || kill -s KILL \$p 2>/dev/null; fi; " +
+            "__stop \$p; " +
             "echo stopped; else echo idle; fi"
         // A shell-user process can't be signalled by root's counterpart and the other way round, so both are tried.
         if (mode != ShellMode.ROOT) {
