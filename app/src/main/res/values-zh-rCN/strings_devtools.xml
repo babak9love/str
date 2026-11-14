@@ -202,6 +202,13 @@
     <string name="archive_rename_failed">重命名失败：%1$s</string>
     <string name="archive_adding">正在添加</string>
     <string name="archive_add_failed">添加失败：%1$s</string>
+    <plurals name="archive_copied_to_clipboard">
+        <item quantity="other">已将 %1$d 项复制到剪贴板</item>
+    </plurals>
+    <plurals name="archive_cut_to_clipboard">
+        <item quantity="other">已将 %1$d 项剪切到剪贴板</item>
+    </plurals>
+    <string name="archive_paste_unavailable">无法粘贴到此压缩包</string>
     <plurals name="archive_added_items">
         <item quantity="other">已添加 %1$d 项</item>
     </plurals>

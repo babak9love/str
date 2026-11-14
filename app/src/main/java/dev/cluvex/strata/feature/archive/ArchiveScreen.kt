@@ -98,6 +98,15 @@ import dev.cluvex.strata.feature.explorer.components.InputSelection
 import dev.cluvex.strata.feature.explorer.components.PasswordDialog
 import dev.cluvex.strata.feature.explorer.components.TaskOverlay
 import java.io.File
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material.icons.rounded.ContentPaste
+import androidx.compose.material3.Badge
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
+import dev.cluvex.strata.core.remote.RemoteUri
+import dev.cluvex.strata.feature.explorer.ClipboardState
+import dev.cluvex.strata.feature.explorer.components.ClipboardQueueDialog
 import dev.cluvex.strata.ui.expressive.Art
 import dev.cluvex.strata.ui.expressive.ExpressiveEmptyState
 import kotlinx.coroutines.launch
@@ -109,6 +118,10 @@ data class ArchiveActions(
     val onLocate: (folder: String, reveal: String?) -> Unit,
     val onOpenArsc: (archive: String, entry: String) -> Unit,
     val onClipboard: (files: List<File>, move: Boolean, archive: String, paths: Set<String>) -> Unit,
+    /** A queued copy/cut was pasted into the archive: it leaves the clipboard. */
+    val onClipPasted: (id: Long) -> Unit,
+    val onClipRemove: (id: Long) -> Unit,
+    val onClipClear: () -> Unit,
 )
 
 private enum class ArchiveSearch { NONE, FILTER, DEEP }
@@ -127,6 +140,7 @@ private sealed interface ArchiveDialog {
 fun ArchiveScreen(
     path: String,
     otherPaneDir: String?,
+    clips: List<ClipboardState>,
     actions: ArchiveActions,
     vm: ArchiveViewModel = viewModel(),
 ) {
@@ -138,6 +152,16 @@ fun ArchiveScreen(
     val s by vm.state.collectAsStateWithLifecycle()
     val snackbar = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
+    var clipsDialog by remember { mutableStateOf(false) }
+    val unavailable = stringResource(R.string.archive_paste_unavailable)
+    // Pastes one queued copy/cut into the open folder of this archive (files shared in from other apps and remote files cannot go here).
+    fun pasteClip(clip: ClipboardState) {
+        if (!vm.state.value.canUpdate || clip.shareMode != null || RemoteUri.isRemote(clip.sourceDir)) {
+            scope.launch { snackbar.showSnackbar(unavailable) }
+            return
+        }
+        vm.pasteClip(clip.items.map { File(it.path) }, clip.move, clip.archiveCut) { actions.onClipPasted(clip.id) }
+    }
     val context = LocalContext.current
     var dialog by remember { mutableStateOf<ArchiveDialog>(ArchiveDialog.None) }
     var menu by remember { mutableStateOf(false) }
@@ -215,7 +239,7 @@ fun ArchiveScreen(
             if (s.selected.isNotEmpty()) {
                 val clip = { move: Boolean ->
                     val paths = s.selected
-                    vm.stageForClipboard(paths) { files -> actions.onClipboard(files, move, s.path, paths) }
+                    vm.stageForClipboard(paths, move) { files -> actions.onClipboard(files, move, s.path, paths) }
                 }
                 TopAppBar(
                     navigationIcon = { IconButton(onClick = vm::clearSelection) { Icon(Icons.Rounded.Close, contentDescription = stringResource(R.string.common_clear_selection)) } },
@@ -263,6 +287,31 @@ fun ArchiveScreen(
                         }
                     },
                     actions = {
+                        if (clips.isNotEmpty()) {
+                            // Like the Paste button of the file list: a tap opens the queue, a long press pastes the newest entry here.
+                            Box {
+                                val haptic = LocalHapticFeedback.current
+                                Box(
+                                    Modifier
+                                        .size(48.dp)
+                                        .clip(CircleShape)
+                                        .combinedClickable(
+                                            role = Role.Button,
+                                            onClick = { clipsDialog = true },
+                                            onLongClick = {
+                                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                                clips.lastOrNull()?.let(::pasteClip)
+                                            },
+                                        ),
+                                    contentAlignment = Alignment.Center,
+                                ) {
+                                    Icon(Icons.Rounded.ContentPaste, contentDescription = stringResource(R.string.explorer_paste_here))
+                                }
+                                Badge(modifier = Modifier.align(Alignment.TopEnd).padding(top = 2.dp, end = 0.dp)) {
+                                    Text(Formatters.number(clips.sumOf { it.items.size }.toLong()))
+                                }
+                            }
+                        }
                         IconButton(onClick = { dialog = ArchiveDialog.Extract(emptySet()) }, enabled = !s.loading) {
                             Icon(Icons.Rounded.Unarchive, contentDescription = stringResource(R.string.archive_extract_all))
                         }
@@ -305,6 +354,15 @@ fun ArchiveScreen(
     }
 
     s.task?.let { TaskOverlay(it) }
+    if (clipsDialog) {
+        ClipboardQueueDialog(
+            clips = clips,
+            onRun = { clip -> clipsDialog = false; pasteClip(clip) },
+            onRemove = { actions.onClipRemove(it.id) },
+            onClear = { actions.onClipClear(); clipsDialog = false },
+            onDismiss = { clipsDialog = false },
+        )
+    }
     s.build?.let { dev.cluvex.strata.feature.build.BuildDialog(it, onClose = vm::closeBuild) }
 
     s.encodeError?.takeIf { s.build == null }?.let { err ->

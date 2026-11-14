@@ -161,6 +161,8 @@ class ExplorerViewModel(
     private val renameInfo = AndroidRenameInfo(app)
 
     init {
+        // The clipboard lives in memory only, so staged archive files left by an earlier run are never needed again.
+        viewModelScope.launch(Dispatchers.IO) { FsUtil.deleteRecursively(File(getApplication<Application>().cacheDir, "archive-clip")) }
         viewModelScope.launch {
             var previousRoot: Boolean? = null
             settingsRepo.settings.collect { s ->
@@ -727,8 +729,21 @@ class ExplorerViewModel(
         val items = files.map { FileItem.of(it) }
         if (items.isEmpty()) return
         val cut = if (move && archive != null) ArchiveCut(archive, paths) else null
-        addClip(ClipboardState(items, move, sourceDir = items.first().parentPath ?: "/", archiveCut = cut), purgeStaged = "archive-clip")
+        // Every staging gets its own sub-folder of archive-clip, so an older copy/cut stays on the clipboard intact.
+        addClip(ClipboardState(items, move, sourceDir = items.first().parentPath ?: "/", archiveCut = cut))
         UiSounds.play(UiSound.POP)
+    }
+
+    /** Deletes staged archive extractions that no queued copy/cut refers to any more (pasted, cancelled or replaced). */
+    private fun cleanStagedArchive() {
+        val root = File(getApplication<Application>().cacheDir, "archive-clip")
+        val inUse = _state.value.clipboards.flatMap { c -> c.items.map { it.path } }
+        viewModelScope.launch(Dispatchers.IO) {
+            root.listFiles()?.forEach { dir ->
+                val prefix = dir.path + "/"
+                if (inUse.none { it.startsWith(prefix) }) FsUtil.deleteRecursively(dir)
+            }
+        }
     }
 
     private fun finishArchiveCut(cut: ArchiveCut, moved: Int, total: Int) {
@@ -752,10 +767,16 @@ class ExplorerViewModel(
     }
 
     /** Clears the whole clipboard queue. */
-    fun clearClipboard() = _state.update { it.copy(clipboards = emptyList()) }
+    fun clearClipboard() {
+        _state.update { it.copy(clipboards = emptyList()) }
+        cleanStagedArchive()
+    }
 
     /** Cancels one queued copy/cut. */
-    fun dropClip(id: Long) = _state.update { s -> s.copy(clipboards = s.clipboards.filterNot { it.id == id }) }
+    fun dropClip(id: Long) {
+        _state.update { s -> s.copy(clipboards = s.clipboards.filterNot { it.id == id }) }
+        cleanStagedArchive()
+    }
 
     fun dropShareClips(mode: ShareMode) = _state.update { s -> s.copy(clipboards = s.clipboards.filterNot { it.shareMode == mode }) }
 

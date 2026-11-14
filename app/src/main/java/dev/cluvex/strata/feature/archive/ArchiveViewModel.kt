@@ -15,6 +15,7 @@ import dev.cluvex.strata.core.archive.WrongPasswordException
 import dev.cluvex.strata.core.archive.ZipEditor
 import dev.cluvex.strata.core.build.BuildRun
 import dev.cluvex.strata.core.fs.FsUtil
+import dev.cluvex.strata.feature.explorer.ArchiveCut
 import dev.cluvex.strata.core.i18n.tr
 import dev.cluvex.strata.core.i18n.trPlural
 import dev.cluvex.strata.core.res.ArscDocument
@@ -317,15 +318,15 @@ class ArchiveViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     /** Extracts the selected entries into a cache folder (one sub-folder per source folder) and hands over the extracted files. */
-    fun stageForClipboard(paths: Set<String>, onReady: (List<File>) -> Unit) {
+    fun stageForClipboard(paths: Set<String>, move: Boolean, onReady: (List<File>) -> Unit) {
         val s = _state.value
         if (paths.isEmpty()) return
         viewModelScope.launch {
             val title = tr(R.string.archive_extracting)
             _state.update { it.copy(task = TaskState(title, indeterminate = true)) }
             try {
-                val root = File(getApplication<Application>().cacheDir, "archive-clip")
-                withContext(Dispatchers.IO) { FsUtil.deleteRecursively(root) }
+                // A folder of its own per copy/cut: the clipboard is a queue, so earlier staged files must survive.
+                val root = File(getApplication<Application>().cacheDir, "archive-clip/${System.nanoTime()}")
                 val files = ArrayList<File>()
                 paths.groupBy { it.substringBeforeLast('/', "") }.entries.forEachIndexed { i, group ->
                     val dest = File(root, i.toString())
@@ -333,8 +334,15 @@ class ArchiveViewModel(app: Application) : AndroidViewModel(app) {
                         .collect { p -> if (p is OpProgress.Running) _state.update { it.copy(task = taskState(title, p)) } }
                     group.value.forEach { files += File(dest, it.substringAfterLast('/')) }
                 }
-                _state.update { it.copy(task = null, selected = emptySet()) }
-                onReady(files.filter { it.exists() })
+                val ready = files.filter { it.exists() }
+                _state.update {
+                    it.copy(
+                        task = null,
+                        selected = emptySet(),
+                        message = if (ready.isEmpty()) null else trPlural(if (move) R.plurals.archive_cut_to_clipboard else R.plurals.archive_copied_to_clipboard, paths.size, paths.size),
+                    )
+                }
+                onReady(ready)
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
@@ -378,6 +386,31 @@ class ArchiveViewModel(app: Application) : AndroidViewModel(app) {
             reload(keepDir = true)
         }) {
             ZipEditor.add(File(s.path), sources, s.dir)
+        }
+    }
+
+    /**
+     * Pastes a clipboard entry into the open folder of the archive. A cut also removes what was cut: the staged
+     * files, or the entries of the archive they came from (unless that is this very folder, which would delete the paste).
+     */
+    fun pasteClip(files: List<File>, move: Boolean, cut: ArchiveCut?, onDone: () -> Unit) {
+        val s = _state.value
+        if (!s.canUpdate || files.isEmpty()) return
+        val sameFolder = cut != null && cut.archive == s.path &&
+            cut.paths.all { it.substringBeforeLast('/', "") == ArchiveTree.normalize(s.dir) }
+        if (sameFolder) {
+            onDone()
+            return
+        }
+        runTask(R.string.archive_adding, R.string.archive_add_failed, "Adding", onSuccess = {
+            _state.update { it.copy(apkChanged = it.apkChanged || it.isApk, message = trPlural(R.plurals.archive_added_items, files.size, files.size)) }
+            reload(keepDir = true)
+            onDone()
+        }) {
+            ZipEditor.add(File(s.path), files, s.dir)
+            if (move) {
+                if (cut != null) ZipEditor.delete(File(cut.archive), cut.paths) else files.forEach { FsUtil.deleteRecursively(it) }
+            }
         }
     }
 

@@ -224,6 +224,15 @@
     <string name="archive_rename_failed">Renaming failed: %1$s</string>
     <string name="archive_adding">Adding</string>
     <string name="archive_add_failed">Adding failed: %1$s</string>
+    <plurals name="archive_copied_to_clipboard">
+        <item quantity="one">%1$d item copied to the clipboard</item>
+        <item quantity="other">%1$d items copied to the clipboard</item>
+    </plurals>
+    <plurals name="archive_cut_to_clipboard">
+        <item quantity="one">%1$d item cut to the clipboard</item>
+        <item quantity="other">%1$d items cut to the clipboard</item>
+    </plurals>
+    <string name="archive_paste_unavailable">Can\'t paste this into the archive</string>
     <plurals name="archive_added_items">
         <item quantity="one">Added %1$d item(s)</item>
         <item quantity="other">Added %1$d item(s)</item>

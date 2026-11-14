@@ -642,9 +642,12 @@ private fun Screen(
             onBack = actions.pop,
             onSign = { actions.signApk(FileItem.of(File(r.path))) },
         )
-        is Route.Archive -> ArchiveScreen(
+        is Route.Archive -> {
+            val explorer by vm.state.collectAsStateWithLifecycle()
+            ArchiveScreen(
             path = r.path,
-            otherPaneDir = vm.state.value.let { it.pane(it.inactive).path },
+            otherPaneDir = explorer.let { it.pane(it.inactive).path },
+            clips = explorer.clipboards,
             actions = ArchiveActions(
                 onBack = actions.pop,
                 onOpenFile = { file -> actions.openFile(FileItem.of(file)) },
@@ -652,8 +655,12 @@ private fun Screen(
                 onLocate = actions.locate,
                 onOpenArsc = { archive, entry -> actions.push(Route.Arsc(archive, entry)) },
                 onClipboard = { files, move, archive, paths -> vm.setArchiveClipboard(files, move, archive, paths) },
+                onClipPasted = vm::dropClip,
+                onClipRemove = vm::dropClip,
+                onClipClear = vm::clearClipboard,
             ),
-        )
+            )
+        }
         is Route.Image -> ImageViewerScreen(
             path = r.path,
             showHidden = settings.showHidden,

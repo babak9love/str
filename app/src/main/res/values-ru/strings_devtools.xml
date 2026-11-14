@@ -259,6 +259,19 @@
     <string name="archive_rename_failed">Не удалось переименовать: %1$s</string>
     <string name="archive_adding">Добавление</string>
     <string name="archive_add_failed">Не удалось добавить: %1$s</string>
+    <plurals name="archive_copied_to_clipboard">
+        <item quantity="one">%1$d элемент скопирован в буфер обмена</item>
+        <item quantity="few">%1$d элемента скопировано в буфер обмена</item>
+        <item quantity="many">%1$d элементов скопировано в буфер обмена</item>
+        <item quantity="other">%1$d элемента скопировано в буфер обмена</item>
+    </plurals>
+    <plurals name="archive_cut_to_clipboard">
+        <item quantity="one">%1$d элемент вырезан в буфер обмена</item>
+        <item quantity="few">%1$d элемента вырезано в буфер обмена</item>
+        <item quantity="many">%1$d элементов вырезано в буфер обмена</item>
+        <item quantity="other">%1$d элемента вырезано в буфер обмена</item>
+    </plurals>
+    <string name="archive_paste_unavailable">Сюда в архив это вставить нельзя</string>
     <plurals name="archive_added_items">
         <item quantity="one">Добавлен %1$d элемент</item>
         <item quantity="few">Добавлено %1$d элемента</item>

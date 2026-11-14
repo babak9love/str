@@ -221,6 +221,15 @@
     <string name="archive_rename_failed">تغییر نام ناموفق بود: \u2068%1$s\u2069</string>
     <string name="archive_adding">در حال افزودن</string>
     <string name="archive_add_failed">افزودن ناموفق بود: \u2068%1$s\u2069</string>
+    <plurals name="archive_copied_to_clipboard">
+        <item quantity="one">\u200F%1$d مورد در کلیپ‌بورد کپی شد</item>
+        <item quantity="other">\u200F%1$d مورد در کلیپ‌بورد کپی شد</item>
+    </plurals>
+    <plurals name="archive_cut_to_clipboard">
+        <item quantity="one">\u200F%1$d مورد در کلیپ‌بورد برش داده شد</item>
+        <item quantity="other">\u200F%1$d مورد در کلیپ‌بورد برش داده شد</item>
+    </plurals>
+    <string name="archive_paste_unavailable">چسباندن این مورد در آرشیو ممکن نیست</string>
     <plurals name="archive_added_items">
         <item quantity="one">\u200F%1$d مورد افزوده شد</item>
         <item quantity="other">\u200F%1$d مورد افزوده شد</item>
