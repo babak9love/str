@@ -152,6 +152,11 @@
     <string name="apps_title">برنامه‌های نصب‌شده</string>
     <string name="apps_close_search">بستن جستجو</string>
     <string name="apps_options">گزینه‌ها</string>
+    <string name="apps_sort_by">مرتب‌سازی بر اساس</string>
+    <string name="apps_sort_name">نام</string>
+    <string name="apps_sort_size">حجم</string>
+    <string name="apps_sort_reverse">ترتیب معکوس</string>
+    <string name="apps_sort_last_updated">آخرین به‌روزرسانی</string>
     <string name="apps_show_system">نمایش برنامه‌های سیستمی</string>
     <string name="apps_extract_settings">پوشه و نام فایل استخراج…</string>
     <string name="apps_selected_cd">انتخاب‌شده</string>

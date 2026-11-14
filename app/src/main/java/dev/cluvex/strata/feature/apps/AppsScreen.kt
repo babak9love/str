@@ -77,7 +77,11 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import dev.cluvex.strata.R
 import dev.cluvex.strata.core.apk.AppIntents
+import dev.cluvex.strata.core.apk.AppsSort
 import dev.cluvex.strata.core.apk.InstalledApp
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.material3.RadioButton
+import androidx.compose.ui.semantics.Role
 import dev.cluvex.strata.core.util.Formatters
 import dev.cluvex.strata.feature.explorer.components.TaskOverlay
 import dev.cluvex.strata.ui.rememberTextClipboard
@@ -95,6 +99,8 @@ data class AppsActions(
     val onOpenApk: (path: String) -> Unit,
     val onLocate: (folder: String, reveal: String?) -> Unit,
     val onExtractSettings: (dir: String, pattern: String) -> Unit,
+    val onSort: (AppsSort) -> Unit,
+    val onSortReversed: (Boolean) -> Unit,
 )
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
@@ -102,6 +108,8 @@ data class AppsActions(
 fun AppsScreen(
     extractDir: String,
     namePattern: String,
+    sort: AppsSort,
+    sortReversed: Boolean,
     actions: AppsActions,
     vm: AppsViewModel = viewModel(),
 ) {
@@ -112,6 +120,9 @@ fun AppsScreen(
     var sheet by remember { mutableStateOf<InstalledApp?>(null) }
     var signatureOf by remember { mutableStateOf<InstalledApp?>(null) }
     var settingsDialog by remember { mutableStateOf(false) }
+    var sortDialog by remember { mutableStateOf(false) }
+    // The order is stored in the settings; the list follows it from the first frame.
+    LaunchedEffect(sort, sortReversed) { vm.setSort(sort, sortReversed) }
     val showLabel = stringResource(R.string.common_show)
 
     LaunchedEffect(s.message) {
@@ -187,6 +198,7 @@ fun AppsScreen(
                                     trailingIcon = { Checkbox(checked = s.showSystem, onCheckedChange = null) },
                                     onClick = { menu = false; vm.setShowSystem(!s.showSystem) },
                                 )
+                                DropdownMenuItem(text = { Text(stringResource(R.string.apps_sort_by)) }, onClick = { menu = false; sortDialog = true })
                                 DropdownMenuItem(text = { Text(stringResource(R.string.apps_extract_settings)) }, onClick = { menu = false; settingsDialog = true })
                                 DropdownMenuItem(text = { Text(stringResource(R.string.common_refresh)) }, onClick = { menu = false; vm.reload() })
                             }
@@ -235,6 +247,18 @@ fun AppsScreen(
     }
     signatureOf?.let { app ->
         SignatureSheet(app = app, signers = { vm.signers(it) }, summary = { vm.signerSummary(it) }, onDismiss = { signatureOf = null })
+    }
+    if (sortDialog) {
+        SortDialog(
+            current = s.sort,
+            reversed = s.sortReversed,
+            onReversed = actions.onSortReversed,
+            onPick = { picked ->
+                sortDialog = false
+                actions.onSort(picked)
+            },
+            onDismiss = { sortDialog = false },
+        )
     }
     if (settingsDialog) {
         ExtractSettingsDialog(
@@ -463,6 +487,43 @@ private fun ExtractSettingsDialog(dir: String, pattern: String, onSave: (String,
             }
         },
         confirmButton = { TextButton(onClick = { onSave(d, p) }, enabled = d.isNotBlank()) { Text(stringResource(R.string.common_save)) } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.common_cancel)) } },
+    )
+}
+
+@Composable
+private fun SortDialog(current: AppsSort, reversed: Boolean, onReversed: (Boolean) -> Unit, onPick: (AppsSort) -> Unit, onDismiss: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.apps_sort_by)) },
+        text = {
+            Column {
+                for (option in AppsSort.entries) {
+                    Row(
+                        Modifier
+                            .fillMaxWidth()
+                            .selectable(selected = current == option, onClick = { onPick(option) }, role = Role.RadioButton)
+                            .padding(vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        RadioButton(selected = current == option, onClick = null)
+                        Text(stringResource(option.label), Modifier.padding(start = 16.dp))
+                    }
+                }
+                HorizontalDivider(Modifier.padding(vertical = 4.dp))
+                Row(
+                    Modifier
+                        .fillMaxWidth()
+                        .selectable(selected = reversed, onClick = { onReversed(!reversed) }, role = Role.Checkbox)
+                        .padding(vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Checkbox(checked = reversed, onCheckedChange = null)
+                    Text(stringResource(R.string.apps_sort_reverse), Modifier.padding(start = 16.dp))
+                }
+            }
+        },
+        confirmButton = {},
         dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.common_cancel)) } },
     )
 }

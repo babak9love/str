@@ -744,11 +744,15 @@ private fun Screen(
             AppsScreen(
                 extractDir = settings.apkExtractDir,
                 namePattern = settings.apkNamePattern,
+                sort = settings.appsSort,
+                sortReversed = settings.appsSortReversed,
                 actions = AppsActions(
                     onBack = actions.pop,
                     onOpenApk = { p -> actions.openWithOpener(FileItem.of(File(p)), Opener.APK_VIEWER) },
                     onLocate = actions.locate,
                     onExtractSettings = { d, p -> s.launch { settingsRepo.setApkExtraction(d, p) } },
+                    onSort = { sort -> s.launch { settingsRepo.setAppsSort(sort) } },
+                    onSortReversed = { on -> s.launch { settingsRepo.setAppsSortReversed(on) } },
                 ),
             )
         }

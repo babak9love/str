@@ -24,6 +24,8 @@ data class InstalledApp(
     val system: Boolean,
     val enabled: Boolean,
     val launchable: Boolean,
+    /** Total size of the base APK and all splits, in bytes. */
+    val apkSize: Long = 0L,
 ) {
     val apkPaths: List<String> get() = listOf(sourceDir) + splitSourceDirs
     val isSplit: Boolean get() = splitSourceDirs.isNotEmpty()
@@ -80,6 +82,7 @@ class InstalledApps(private val pm: PackageManager) {
             system = (app.flags and (ApplicationInfo.FLAG_SYSTEM or ApplicationInfo.FLAG_UPDATED_SYSTEM_APP)) != 0,
             enabled = app.enabled,
             launchable = pm.getLaunchIntentForPackage(packageName) != null,
+            apkSize = (listOf(app.sourceDir.orEmpty()) + app.splitSourceDirs.orEmpty()).sumOf { if (it.isEmpty()) 0L else java.io.File(it).length() },
         )
     }
 }

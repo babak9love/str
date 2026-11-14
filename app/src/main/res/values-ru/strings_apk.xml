@@ -152,6 +152,11 @@
     <string name="apps_title">Установленные приложения</string>
     <string name="apps_close_search">Закрыть поиск</string>
     <string name="apps_options">Параметры</string>
+    <string name="apps_sort_by">Сортировка</string>
+    <string name="apps_sort_name">Имя</string>
+    <string name="apps_sort_size">Размер</string>
+    <string name="apps_sort_reverse">Обратный порядок</string>
+    <string name="apps_sort_last_updated">Последнее обновление</string>
     <string name="apps_show_system">Показывать системные приложения</string>
     <string name="apps_extract_settings">Папка и имя файла…</string>
     <string name="apps_selected_cd">Выбрано</string>

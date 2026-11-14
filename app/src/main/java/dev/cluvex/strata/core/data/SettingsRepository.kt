@@ -102,6 +102,8 @@ data class StrataSettings(
     val editor: EditorPrefs = EditorPrefs(),
     val apkExtractDir: String = "",
     val apkNamePattern: String = "{A}_{V}",
+    val appsSort: dev.cluvex.strata.core.apk.AppsSort = dev.cluvex.strata.core.apk.AppsSort.NAME,
+    val appsSortReversed: Boolean = false,
     val runCommands: Map<String, String> = emptyMap(),
     val reader: ReaderPrefs = ReaderPrefs(),
     val actions: ActionLayout = ActionLayout(),
@@ -229,6 +231,8 @@ class SettingsRepository(private val context: Context) {
         val EDITOR_KEEP_SCREEN_ON = booleanPreferencesKey("editor_keep_screen_on")
         val APK_EXTRACT_DIR = stringPreferencesKey("apk_extract_dir")
         val APK_NAME_PATTERN = stringPreferencesKey("apk_name_pattern")
+        val APPS_SORT = stringPreferencesKey("apps_sort_by")
+        val APPS_SORT_REVERSED = booleanPreferencesKey("apps_sort_reversed")
         val RENAME_HISTORY = stringPreferencesKey("rename_history")
         val RECENT_COLORS = stringPreferencesKey("recent_colors")
         val PICK_HISTORY = stringPreferencesKey("image_pick_history")
@@ -251,13 +255,13 @@ class SettingsRepository(private val context: Context) {
             EDITOR_HIGHLIGHT_BRACKETS, EDITOR_PINCH_ZOOM, EDITOR_STICKY_SCROLL, EDITOR_INDENT_GUIDES, EDITOR_PIN_LINE_NUMBERS,
             EDITOR_CURSOR_ANIMATION, EDITOR_KEEP_SCREEN_ON, READER_KEEP_SCREEN, APP_LOCK, PERSIAN_CALENDAR,
             SHOW_PARENT_ENTRY, VIDEO_AUTO_HIDE, RESUME_AUDIO, RESUME_VIDEO, BACK_TO_LIST_AUDIO, BACK_TO_LIST_VIDEO, BACKGROUND_AUDIO, BACKGROUND_VIDEO,
-            SAVE_SPEED_VIDEO, SAVE_SPEED_AUDIO, SHUFFLE_VIDEO, SHUFFLE_AUDIO, PLAY_ALONE_VIDEO, PLAY_ALONE_AUDIO,
+            SAVE_SPEED_VIDEO, SAVE_SPEED_AUDIO, SHUFFLE_VIDEO, SHUFFLE_AUDIO, PLAY_ALONE_VIDEO, PLAY_ALONE_AUDIO, APPS_SORT_REVERSED,
         )
         val INTS = listOf(SEED, TRASH_CLEAN_DAYS, EDITOR_TAB_WIDTH, GRID_COLUMNS, ITEM_SCALE, FOLDER_SCALE, NAME_SCALE, META_SCALE, SEEK_BACK_SECONDS, SEEK_FORWARD_SECONDS, REPEAT_VIDEO, REPEAT_AUDIO)
         val FLOATS = listOf(TEXT_SCALE, POPUP_BORDER_ALPHA, EDITOR_TEXT_SIZE, SPEED_VIDEO, SPEED_AUDIO, VIDEO_VOLUME, AUDIO_VOLUME)
         val STRINGS = listOf(
             SORT_BY, FOLDER_SORTS, THEME_MODE, THEME_STYLE, CONTRAST, CORNERS, ICON_SHAPE, FOLDER_STYLE, MOTION, VIEW_MODE, DATE_STYLE, SIZE_UNITS,
-            START_FOLDER, START_PATH, CONFLICT, UI_DENSITY, OPEN_DEFAULTS, EDITOR_THEME, APK_EXTRACT_DIR, APK_NAME_PATTERN,
+            START_FOLDER, START_PATH, CONFLICT, UI_DENSITY, OPEN_DEFAULTS, EDITOR_THEME, APK_EXTRACT_DIR, APK_NAME_PATTERN, APPS_SORT,
             RENAME_HISTORY, RECENT_COLORS, PICK_HISTORY, PICK_SETTINGS, PLUGIN_PINS, LAST_LEFT, LAST_RIGHT, RUN_COMMANDS, READER_THEME, READER_SPOTS, READER_MARKS,
             ACTION_LAYOUT, LOCK_DELAY, VAULT_LOCK_DELAY, PROTECTED_FOLDERS, BOOKMARK_STYLE, DRAWER_HIDDEN,
         )
@@ -304,7 +308,7 @@ class SettingsRepository(private val context: Context) {
             SHUFFLE_VIDEO.name, SHUFFLE_AUDIO.name, VIDEO_AUTO_HIDE.name, SEEK_BACK_SECONDS.name,
             SEEK_FORWARD_SECONDS.name,
             // APK
-            VERIFY_BEFORE_INSTALL.name, INSTALL_WITH_ROOT.name, APK_EXTRACT_DIR.name, APK_NAME_PATTERN.name,
+            VERIFY_BEFORE_INSTALL.name, INSTALL_WITH_ROOT.name, APK_EXTRACT_DIR.name, APK_NAME_PATTERN.name, APPS_SORT.name, APPS_SORT_REVERSED.name,
             // Text editor
             EDITOR_THEME.name, EDITOR_WRAP.name, EDITOR_LINE_NUMBERS.name, EDITOR_WHITESPACE.name,
             EDITOR_SYMBOL_BAR.name, EDITOR_TEXT_SIZE.name, EDITOR_TAB_WIDTH.name, EDITOR_AUTO_INDENT.name,
@@ -423,6 +427,10 @@ class SettingsRepository(private val context: Context) {
         it[Keys.APK_NAME_PATTERN] = pattern.trim()
     }
 
+    suspend fun setAppsSort(sort: dev.cluvex.strata.core.apk.AppsSort) = context.dataStore.edit { it[Keys.APPS_SORT] = sort.name }
+
+    suspend fun setAppsSortReversed(value: Boolean) = context.dataStore.edit { it[Keys.APPS_SORT_REVERSED] = value }
+
     suspend fun setVerifyBeforeInstall(value: Boolean) = context.dataStore.edit { it[Keys.VERIFY_BEFORE_INSTALL] = value }
     suspend fun setInstallWithRoot(value: Boolean) = context.dataStore.edit { it[Keys.INSTALL_WITH_ROOT] = value }
 
@@ -539,6 +547,8 @@ class SettingsRepository(private val context: Context) {
             editor = readEditor(p),
             apkExtractDir = p[Keys.APK_EXTRACT_DIR] ?: "",
             apkNamePattern = p[Keys.APK_NAME_PATTERN] ?: "{A}_{V}",
+            appsSort = enumOf(p[Keys.APPS_SORT], dev.cluvex.strata.core.apk.AppsSort.NAME),
+            appsSortReversed = p[Keys.APPS_SORT_REVERSED] ?: false,
             runCommands = RunCommands.decode(p[Keys.RUN_COMMANDS]),
             reader = readReader(p),
             actions = ActionLayout.decode(p[Keys.ACTION_LAYOUT]),

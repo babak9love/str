@@ -11,6 +11,7 @@ import dev.cluvex.strata.R
 import dev.cluvex.strata.core.apk.InstalledSigners
 import dev.cluvex.strata.core.apk.AppSigners
 import dev.cluvex.strata.core.apk.ApkExtractor
+import dev.cluvex.strata.core.apk.AppsSort
 import dev.cluvex.strata.core.apk.InstalledApp
 import dev.cluvex.strata.core.apk.InstalledApps
 import dev.cluvex.strata.core.i18n.tr
@@ -30,6 +31,8 @@ data class AppsUiState(
     val loading: Boolean = true,
     val all: List<InstalledApp> = emptyList(),
     val showSystem: Boolean = false,
+    val sort: AppsSort = AppsSort.NAME,
+    val sortReversed: Boolean = false,
     val query: String = "",
     val selected: Set<String> = emptySet(),
     val task: TaskState? = null,
@@ -40,6 +43,7 @@ data class AppsUiState(
         get() = all.asSequence()
             .filter { showSystem || !it.system }
             .filter { query.isBlank() || it.label.contains(query, ignoreCase = true) || it.packageName.contains(query, ignoreCase = true) }
+            .sortedWith(sort.comparator(sortReversed))
             .toList()
 }
 
@@ -78,6 +82,9 @@ class AppsViewModel(app: Application) : AndroidViewModel(app) {
 
     fun setQuery(q: String) = _state.update { it.copy(query = q) }
     fun setShowSystem(on: Boolean) = _state.update { it.copy(showSystem = on) }
+
+    /** Applies the stored order. */
+    fun setSort(sort: AppsSort, reversed: Boolean) = _state.update { it.copy(sort = sort, sortReversed = reversed) }
 
     fun toggle(pkg: String) = _state.update {
         it.copy(selected = if (pkg in it.selected) it.selected - pkg else it.selected + pkg)
@@ -120,7 +127,7 @@ class AppsViewModel(app: Application) : AndroidViewModel(app) {
             try {
                 for ((i, app) in apps.withIndex()) {
                     _state.update { it.copy(task = TaskState(tr(R.string.apps_extracting), app.label, i.toFloat() / apps.size, indeterminate = false)) }
-                    val result = runCatching { withContext(Dispatchers.IO) { ApkExtractor.extract(app, target, pattern) } }
+                    val result = runCatching { withContext(Dispatchers.IO) { ApkExtractor.extract(getApplication<Application>(), app, target, pattern) } }
                     if (result.isSuccess) done++ else failed += app.label
                     _state.update { it.copy(task = TaskState(tr(R.string.apps_extracting), app.label, (i + 1f) / apps.size, indeterminate = false)) }
                 }
