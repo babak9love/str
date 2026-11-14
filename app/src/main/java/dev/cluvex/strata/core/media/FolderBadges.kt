@@ -135,7 +135,7 @@ object FolderBadges {
     private val videoExt = setOf("mp4", "mkv", "webm", "mov", "avi", "3gp", "m4v")
     private val audioExt = setOf("mp3", "m4a", "flac", "ogg", "opus", "wav", "aac", "wma", "mka")
 
-    /** First image, else video, else APK, else music cover inside the folder (by name; hidden files, whose name starts with a dot, are ignored), rendered as a small bitmap. */
+    /** First image, else video, else APK (or APK bundle: .apks / .xapk / .apkm), else music cover inside the folder (by name; hidden files, whose name starts with a dot, are ignored), rendered as a small bitmap. */
     private fun contentIcon(context: Context, dir: File): Bitmap? {
         val files = dir.listFiles()?.asSequence()?.filter { it.isFile && !it.name.startsWith(".") }?.take(MAX_ENTRIES)?.sortedBy { it.name }?.toList() ?: return null
         files.firstOrNull { it.extension.lowercase() in imageExt }?.let { f ->
@@ -188,7 +188,7 @@ object FolderBadges {
     private fun apkIcon(context: Context, dir: File, skipHidden: Boolean = false): Bitmap? {
         val files = runCatching { dir.listFiles() }.getOrNull() ?: return null
         var tries = 0
-        for (f in files.asSequence().take(MAX_ENTRIES).filter { it.isFile && it.extension.equals("apk", ignoreCase = true) && !(skipHidden && it.name.startsWith(".")) }.sortedBy { it.name }) {
+        for (f in files.asSequence().take(MAX_ENTRIES).filter { it.isFile && it.extension.lowercase().let { ext -> ext == "apk" || ext in ApkIcons.BUNDLE_EXTENSIONS } && !(skipHidden && it.name.startsWith(".")) }.sortedBy { it.name }) {
             ApkIcons.load(context, f.path, SIZE)?.let { return it }
             if (++tries >= MAX_APK_TRIES) break
         }
