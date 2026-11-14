@@ -6,6 +6,8 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.selection.selectable
@@ -20,6 +22,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -28,9 +31,14 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import dev.cluvex.strata.R
+import dev.cluvex.strata.core.apk.InstalledApp
+import dev.cluvex.strata.core.apk.InstalledApps
 import dev.cluvex.strata.core.media.FolderBadgeStore
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 private enum class IconChoice { APP, AUTO, IMAGE }
 
@@ -53,6 +61,11 @@ fun FolderBadgeDialog(path: String, onDismiss: () -> Unit) {
         )
     }
     var packageName by remember { mutableStateOf(current?.takeIf { it.startsWith("app:") }?.removePrefix("app:").orEmpty()) }
+    var pickingApp by remember { mutableStateOf(false) }
+    // The app behind the package name (its icon and label are shown on the button), null while blank or unknown.
+    val selectedApp by produceState<InstalledApp?>(null, packageName) {
+        value = if (packageName.isBlank()) null else withContext(Dispatchers.IO) { InstalledApps(context.packageManager).find(packageName) }
+    }
 
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
         if (uri != null) {
@@ -77,15 +90,32 @@ fun FolderBadgeDialog(path: String, onDismiss: () -> Unit) {
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 ChoiceRow(choice == IconChoice.APP, stringResource(R.string.folder_badge_app)) { choice = IconChoice.APP }
                 if (choice == IconChoice.APP) {
-                    OutlinedTextField(
-                        value = packageName,
-                        onValueChange = { packageName = it.trim() },
-                        label = { Text(stringResource(R.string.folder_badge_package)) },
-                        placeholder = { Text("com.example.app") },
-                        singleLine = true,
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
+                    Column(
                         modifier = Modifier.fillMaxWidth().padding(start = 12.dp),
-                    )
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        OutlinedButton(onClick = { pickingApp = true }, modifier = Modifier.fillMaxWidth()) {
+                            selectedApp?.let {
+                                InstalledAppIcon(it.packageName, 24.dp)
+                                Spacer(Modifier.width(8.dp))
+                            }
+                            Text(
+                                selectedApp?.label ?: stringResource(R.string.folder_badge_choose_app),
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                        }
+                        // Filled in by the picker; it can still be edited by hand.
+                        OutlinedTextField(
+                            value = packageName,
+                            onValueChange = { packageName = it.trim() },
+                            label = { Text(stringResource(R.string.folder_badge_package)) },
+                            placeholder = { Text("com.example.app") },
+                            singleLine = true,
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                    }
                 }
                 ChoiceRow(choice == IconChoice.AUTO, stringResource(R.string.folder_badge_auto)) { choice = IconChoice.AUTO }
                 ChoiceRow(choice == IconChoice.IMAGE, stringResource(R.string.folder_badge_image)) { choice = IconChoice.IMAGE }
@@ -121,6 +151,15 @@ fun FolderBadgeDialog(path: String, onDismiss: () -> Unit) {
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.common_cancel)) } },
     )
+    if (pickingApp) {
+        AppPickerDialog(
+            onPick = {
+                packageName = it
+                pickingApp = false
+            },
+            onDismiss = { pickingApp = false },
+        )
+    }
 }
 
 @Composable

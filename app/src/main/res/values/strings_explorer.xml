@@ -264,6 +264,8 @@
     <string name="folder_badge_auto">A file inside the folder (image, video, APK, music cover or file icon)</string>
     <string name="folder_badge_image">My own picture</string>
     <string name="folder_badge_choose_image">Choose picture…</string>
+    <string name="folder_badge_choose_app">Choose app…</string>
+    <string name="folder_badge_pick_title">Choose an app</string>
     <string name="folder_badge_reset">Reset to default badge</string>
     <string name="folder_badge_image_failed">Couldn\'t read that picture</string>
     <string name="incoming_share_title">Shared files</string>

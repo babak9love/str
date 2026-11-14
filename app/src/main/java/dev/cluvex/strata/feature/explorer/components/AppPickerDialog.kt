@@ -1,0 +1,180 @@
+package dev.cluvex.strata.feature.explorer.components
+
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Check
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.input.KeyboardCapitalization
+import androidx.compose.ui.text.style.TextDirection
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.dp
+import androidx.core.graphics.drawable.toBitmap
+import dev.cluvex.strata.R
+import dev.cluvex.strata.core.apk.InstalledApp
+import dev.cluvex.strata.core.apk.InstalledApps
+import dev.cluvex.strata.core.shell.ShellParams
+import dev.cluvex.strata.ui.expressive.AlertDialog
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+
+/**
+ * One installed app to choose from, with a search box (name or package). Tapping an app hands back its package name;
+ * a package that is not in the list (hidden from this app, or not installed) can still be typed in and used.
+ */
+@Composable
+fun AppPickerDialog(onPick: (String) -> Unit, onDismiss: () -> Unit) {
+    val context = LocalContext.current
+    val apps by produceState<List<InstalledApp>?>(null) {
+        value = withContext(Dispatchers.IO) {
+            runCatching { InstalledApps(context.packageManager).list(includeSystem = true) }.getOrDefault(emptyList())
+        }
+    }
+    var query by remember { mutableStateOf("") }
+    // User apps alone by default; both chips on shows everything, either one alone shows only that kind.
+    var showUser by remember { mutableStateOf(true) }
+    var showSystem by remember { mutableStateOf(false) }
+    val q = query.trim()
+    val shown = remember(apps, q, showUser, showSystem) {
+        apps.orEmpty().filter { a ->
+            val kindOk = showUser == showSystem || (if (showSystem) a.system else !a.system)
+            val textOk = q.isEmpty() || a.label.contains(q, ignoreCase = true) || a.packageName.contains(q, ignoreCase = true)
+            textOk && kindOk
+        }
+    }
+    val typed = q.takeIf { ShellParams.isValidPackage(it) && shown.none { a -> a.packageName == it } }
+    val mono = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace, textDirection = TextDirection.Ltr)
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.folder_badge_pick_title)) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedTextField(
+                    value = query,
+                    onValueChange = { query = it },
+                    singleLine = true,
+                    placeholder = { Text(stringResource(R.string.shell_param_search), maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                    keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.None, autoCorrectEnabled = false),
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    PickerKindChip(showUser, stringResource(R.string.shell_param_user)) { showUser = !showUser }
+                    PickerKindChip(showSystem, stringResource(R.string.shell_param_system)) { showSystem = !showSystem }
+                }
+                Box(Modifier.fillMaxWidth().heightIn(max = 320.dp)) {
+                    if (apps == null) {
+                        CircularProgressIndicator(Modifier.align(Alignment.Center))
+                    } else {
+                        LazyColumn {
+                            if (typed != null) {
+                                item(key = "typed") {
+                                    Text(
+                                        stringResource(R.string.shell_param_use, typed),
+                                        style = mono,
+                                        modifier = Modifier.fillMaxWidth().clickable { onPick(typed) }.padding(vertical = 12.dp, horizontal = 4.dp),
+                                    )
+                                }
+                            }
+                            if (shown.isEmpty() && typed == null) {
+                                item(key = "empty") {
+                                    Text(
+                                        stringResource(R.string.shell_param_empty),
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.padding(vertical = 12.dp, horizontal = 4.dp),
+                                    )
+                                }
+                            }
+                            items(shown, key = { it.packageName }) { a ->
+                                Row(
+                                    modifier = Modifier.fillMaxWidth()
+                                        .clip(RoundedCornerShape(12.dp))
+                                        .clickable { onPick(a.packageName) }
+                                        .padding(vertical = 8.dp, horizontal = 4.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                                ) {
+                                    InstalledAppIcon(a.packageName, 40.dp)
+                                    Column(Modifier.weight(1f)) {
+                                        Text(a.label, style = MaterialTheme.typography.bodyLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                        Text(
+                                            a.packageName,
+                                            style = mono,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis,
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {},
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.common_cancel)) } },
+    )
+}
+
+/** The launcher icon of an installed app, loaded off the main thread (only the rows on screen are ever loaded). */
+@Composable
+internal fun InstalledAppIcon(packageName: String, size: Dp) {
+    val context = LocalContext.current
+    val icon by produceState<ImageBitmap?>(null, packageName) {
+        value = withContext(Dispatchers.IO) {
+            runCatching { context.packageManager.getApplicationIcon(packageName).toBitmap(96, 96).asImageBitmap() }.getOrNull()
+        }
+    }
+    Box(Modifier.size(size), contentAlignment = Alignment.Center) {
+        icon?.let { Image(bitmap = it, contentDescription = null, modifier = Modifier.size(size)) }
+    }
+}
+
+/** A filter chip with the app's usual chip colors; a check mark shows while it is on. */
+@Composable
+private fun PickerKindChip(selected: Boolean, label: String, onClick: () -> Unit) {
+    FilterChip(
+        selected = selected,
+        onClick = onClick,
+        label = { Text(label, maxLines = 1) },
+        leadingIcon = if (selected) {
+            { Icon(Icons.Rounded.Check, contentDescription = null, modifier = Modifier.size(FilterChipDefaults.IconSize)) }
+        } else null,
+    )
+}
