@@ -248,6 +248,12 @@
     <string name="explorer_drop_into">به داخل \u2068%1$s\u2069</string>
     <string name="explorer_incoming_hidden">\u200FStrata محل ذخیره‌ی \u2068%1$s\u2069 را نمی‌بیند</string>
     <string name="explorer_incoming_save">ذخیره در Download</string>
+    <string name="explorer_shared_copying">در حال کپی فایل‌های دریافتی…</string>
+    <plurals name="explorer_shared_to_clipboard">
+        <item quantity="one">\u200F%1$d مورد به کلیپ‌بورد اضافه شد</item>
+        <item quantity="other">\u200F%1$d مورد به کلیپ‌بورد اضافه شد</item>
+    </plurals>
+    <string name="explorer_shared_partial">\u200F%1$d مورد از %2$d مورد به کلیپ‌بورد اضافه شد؛ بقیه خوانده نشدند</string>
     <string name="explorer_incoming_unreadable">برنامه‌ی دیگر اجازه‌ی خواندن این فایل را نداد</string>
     <string name="rename_mode_name">نام</string>
     <string name="rename_mode_full">نام کامل</string>

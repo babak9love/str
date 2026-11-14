@@ -22,7 +22,12 @@ object IncomingShare {
                 else intent.getParcelableArrayListExtra<Uri>(Intent.EXTRA_STREAM)).orEmpty().filterNotNull()
             else -> emptyList()
         }
-        return found.filter { it.scheme == "content" || it.scheme == "file" }
+        // Some apps put the files only in the clip data, not in EXTRA_STREAM.
+        val all = found.ifEmpty {
+            if (action != Intent.ACTION_SEND && action != Intent.ACTION_SEND_MULTIPLE) emptyList()
+            else intent.clipData?.let { clip -> (0 until clip.itemCount).mapNotNull { clip.getItemAt(it).uri } }.orEmpty()
+        }
+        return all.filter { it.scheme == "content" || it.scheme == "file" }.distinct()
     }
 
     fun mode(intent: Intent?): ShareMode? =

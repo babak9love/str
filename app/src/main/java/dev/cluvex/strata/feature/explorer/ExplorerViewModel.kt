@@ -162,7 +162,11 @@ class ExplorerViewModel(
 
     init {
         // The clipboard lives in memory only, so staged archive files left by an earlier run are never needed again.
-        viewModelScope.launch(Dispatchers.IO) { FsUtil.deleteRecursively(File(getApplication<Application>().cacheDir, "archive-clip")) }
+        viewModelScope.launch(Dispatchers.IO) {
+            val cache = getApplication<Application>().cacheDir
+            FsUtil.deleteRecursively(File(cache, "archive-clip"))
+            FsUtil.deleteRecursively(File(cache, "shared"))
+        }
         viewModelScope.launch {
             var previousRoot: Boolean? = null
             settingsRepo.settings.collect { s ->
@@ -734,14 +738,16 @@ class ExplorerViewModel(
         UiSounds.play(UiSound.POP)
     }
 
-    /** Deletes staged archive extractions that no queued copy/cut refers to any more (pasted, cancelled or replaced). */
+    /** Deletes staged files (from archives and from other apps' shares) that no queued copy/cut refers to any more. */
     private fun cleanStagedArchive() {
-        val root = File(getApplication<Application>().cacheDir, "archive-clip")
+        val cache = getApplication<Application>().cacheDir
         val inUse = _state.value.clipboards.flatMap { c -> c.items.map { it.path } }
         viewModelScope.launch(Dispatchers.IO) {
-            root.listFiles()?.forEach { dir ->
-                val prefix = dir.path + "/"
-                if (inUse.none { it.startsWith(prefix) }) FsUtil.deleteRecursively(dir)
+            for (name in listOf("archive-clip", "shared")) {
+                File(cache, name).listFiles()?.forEach { dir ->
+                    val prefix = dir.path + "/"
+                    if (inUse.none { it.startsWith(prefix) }) FsUtil.deleteRecursively(dir)
+                }
             }
         }
     }
@@ -1497,12 +1503,15 @@ class ExplorerViewModel(
         }
     }
 
-    /** Files shared into Strata from another app are copied to a private folder and put on the clipboard, ready to paste anywhere. */
+    /**
+     * Files shared into Strata from another app are copied to a private folder and put on the clipboard, ready to paste
+     * anywhere. Each share gets its own folder, so an earlier share (or a copy still running) is not wiped by the next one.
+     */
     fun stageShared(uris: List<Uri>, mode: ShareMode? = null) = viewModelScope.launch {
         val app = getApplication<Application>()
+        postMessage(tr(R.string.explorer_shared_copying))
         val files = withContext(Dispatchers.IO) {
-            val root = File(app.cacheDir, "shared")
-            root.deleteRecursively()
+            val root = File(app.cacheDir, "shared/${System.nanoTime()}")
             uris.mapIndexedNotNull { index, uri ->
                 runCatching {
                     val name = IncomingPaths.safeName(IncomingFiles.displayName(app, uri))
@@ -1519,8 +1528,14 @@ class ExplorerViewModel(
             return@launch
         }
         val items = files.map { FileItem.of(it) }
-        addClip(ClipboardState(items, false, sourceDir = items.first().parentPath ?: "/", shareMode = mode), purgeStaged = "shared")
+        addClip(ClipboardState(items, false, sourceDir = items.first().parentPath ?: "/", shareMode = mode))
+        cleanStagedArchive()
         UiSounds.play(UiSound.POP)
+        // Always say how it went: nothing visible used to happen when the clipboard was filled (or when part of it failed).
+        postMessage(
+            if (files.size == uris.size) trPlural(R.plurals.explorer_shared_to_clipboard, files.size, files.size)
+            else tr(R.string.explorer_shared_partial, files.size, uris.size),
+        )
     }
 
     fun consumeIncoming(seq: Int) = _state.update { if (it.incoming?.seq == seq) it.copy(incoming = null) else it }

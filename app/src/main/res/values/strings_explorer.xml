@@ -248,6 +248,12 @@
     <string name="explorer_drop_into">Into %1$s</string>
     <string name="explorer_incoming_hidden">Strata can\'t see where %1$s is stored</string>
     <string name="explorer_incoming_save">Save to Download</string>
+    <string name="explorer_shared_copying">Copying shared files…</string>
+    <plurals name="explorer_shared_to_clipboard">
+        <item quantity="one">%1$d item added to the clipboard</item>
+        <item quantity="other">%1$d items added to the clipboard</item>
+    </plurals>
+    <string name="explorer_shared_partial">Added %1$d of %2$d items to the clipboard; the rest could not be read</string>
     <string name="explorer_incoming_unreadable">The other app didn\'t let Strata read this file</string>
     <string name="rename_mode_name">Name</string>
     <string name="rename_mode_full">Full name</string>

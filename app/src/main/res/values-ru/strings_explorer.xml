@@ -271,6 +271,14 @@
     <string name="explorer_drop_into">В %1$s</string>
     <string name="explorer_incoming_hidden">Strata не видит, где хранится %1$s</string>
     <string name="explorer_incoming_save">Сохранить в Download</string>
+    <string name="explorer_shared_copying">Копирование полученных файлов…</string>
+    <plurals name="explorer_shared_to_clipboard">
+        <item quantity="one">%1$d элемент добавлен в буфер обмена</item>
+        <item quantity="few">%1$d элемента добавлено в буфер обмена</item>
+        <item quantity="many">%1$d элементов добавлено в буфер обмена</item>
+        <item quantity="other">%1$d элемента добавлено в буфер обмена</item>
+    </plurals>
+    <string name="explorer_shared_partial">В буфер обмена добавлено %1$d из %2$d элементов; остальные прочитать не удалось</string>
     <string name="explorer_incoming_unreadable">Другое приложение не дало прочитать этот файл</string>
     <string name="rename_mode_name">Имя</string>
     <string name="rename_mode_full">Полное имя</string>

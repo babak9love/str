@@ -205,6 +205,7 @@ fun AppShell(
     incomingFile: Uri? = null,
     incomingShare: List<Uri> = emptyList(),
     incomingShareMode: ShareMode? = null,
+    incomingShareToken: Int = 0,
     openPlayerToken: Int = 0,
     openShellToken: Int = 0,
     onIncomingDone: () -> Unit = {},
@@ -280,7 +281,7 @@ fun AppShell(
         if (stack.route != Route.ShellCommands) stack.push(Route.ShellCommands)
     }
 
-    LaunchedEffect(incomingShare) {
+    LaunchedEffect(incomingShare, incomingShareToken) {
         if (incomingShare.isNotEmpty()) vm.stageShared(incomingShare, incomingShareMode)
     }
 

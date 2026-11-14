@@ -15,6 +15,7 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
@@ -24,6 +25,7 @@ import dev.cluvex.strata.core.data.SettingsRepository
 import dev.cluvex.strata.core.data.StrataSettings
 import dev.cluvex.strata.core.i18n.L10n
 import dev.cluvex.strata.core.open.IncomingShare
+import dev.cluvex.strata.feature.explorer.ShareMode
 import dev.cluvex.strata.core.shell.ShellTiles
 import dev.cluvex.strata.core.sound.UiSounds
 import dev.cluvex.strata.feature.shell.ShellOpenRequest
@@ -86,9 +88,23 @@ class MainActivity : FragmentActivity() {
         openShellToken.intValue++
     }
 
+    /** Files shared in from another app; the token changes with every share, so sharing the same file again still runs. */
+    private val shareUris = mutableStateOf<List<Uri>>(emptyList())
+    private val shareMode = mutableStateOf<ShareMode?>(null)
+    private val shareToken = mutableIntStateOf(0)
+
+    private fun receiveShare(uris: List<Uri>, mode: ShareMode?) {
+        if (uris.isEmpty()) return
+        shareUris.value = uris
+        shareMode.value = mode
+        shareToken.intValue++
+    }
+
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
+        // Strata was already open and the system handed the share to this instance: it used to be ignored here.
+        receiveShare(IncomingShare.uris(intent), IncomingShare.mode(intent))
         if (requestsPlayer(intent)) openPlayerToken.intValue++
         requestShell(intent)
     }
@@ -132,6 +148,7 @@ class MainActivity : FragmentActivity() {
         val incomingFile = if (incoming == null && savedInstanceState == null) incomingFile(intent) else null
         val incomingShare = if (savedInstanceState == null) IncomingShare.uris(intent) else emptyList()
         val incomingShareMode = IncomingShare.mode(intent)
+        receiveShare(incomingShare, incomingShareMode)
         if (savedInstanceState == null && requestsPlayer(intent)) openPlayerToken.intValue++
         if (savedInstanceState == null) requestShell(intent)
         setContent {
@@ -163,8 +180,9 @@ class MainActivity : FragmentActivity() {
                                 startPathOther = startPath2,
                                 incoming = incoming,
                                 incomingFile = incomingFile,
-                                incomingShare = incomingShare,
-                                incomingShareMode = incomingShareMode,
+                                incomingShare = shareUris.value,
+                                incomingShareMode = shareMode.value,
+                                incomingShareToken = shareToken.intValue,
                                 openPlayerToken = openPlayerToken.intValue,
                                 openShellToken = openShellToken.intValue,
                                 onIncomingDone = { finish() },

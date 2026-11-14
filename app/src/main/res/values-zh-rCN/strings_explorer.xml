@@ -235,6 +235,11 @@
     <string name="explorer_drop_into">放入 %1$s</string>
     <string name="explorer_incoming_hidden">Strata 无法看到 %1$s 的存储位置</string>
     <string name="explorer_incoming_save">保存到 Download</string>
+    <string name="explorer_shared_copying">正在复制分享的文件…</string>
+    <plurals name="explorer_shared_to_clipboard">
+        <item quantity="other">已将 %1$d 项添加到剪贴板</item>
+    </plurals>
+    <string name="explorer_shared_partial">已将 %2$d 项中的 %1$d 项添加到剪贴板；其余无法读取</string>
     <string name="explorer_incoming_unreadable">另一个应用不允许读取此文件</string>
     <string name="rename_mode_name">名称</string>
     <string name="rename_mode_full">完整名称</string>
