@@ -648,6 +648,7 @@ private fun Screen(
             path = r.path,
             otherPaneDir = explorer.let { it.pane(it.inactive).path },
             clips = explorer.clipboards,
+            conflictChoice = settings.operations.conflict,
             actions = ArchiveActions(
                 onBack = actions.pop,
                 onOpenFile = { file -> actions.openFile(FileItem.of(file)) },

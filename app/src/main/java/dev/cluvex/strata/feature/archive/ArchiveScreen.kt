@@ -98,6 +98,11 @@ import dev.cluvex.strata.feature.explorer.components.InputSelection
 import dev.cluvex.strata.feature.explorer.components.PasswordDialog
 import dev.cluvex.strata.feature.explorer.components.TaskOverlay
 import java.io.File
+import dev.cluvex.strata.core.sound.UiSounds
+import dev.cluvex.strata.core.sound.UiSound
+import dev.cluvex.strata.feature.explorer.components.TransferDialog
+import dev.cluvex.strata.core.model.ConflictChoice
+import dev.cluvex.strata.core.fs.Conflict
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.rounded.ContentPaste
@@ -141,6 +146,7 @@ fun ArchiveScreen(
     path: String,
     otherPaneDir: String?,
     clips: List<ClipboardState>,
+    conflictChoice: ConflictChoice,
     actions: ArchiveActions,
     vm: ArchiveViewModel = viewModel(),
 ) {
@@ -153,14 +159,30 @@ fun ArchiveScreen(
     val snackbar = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
     var clipsDialog by remember { mutableStateOf(false) }
+    var pendingPaste by remember { mutableStateOf<ClipboardState?>(null) }
     val unavailable = stringResource(R.string.archive_paste_unavailable)
     // Pastes one queued copy/cut into the open folder of this archive (files shared in from other apps and remote files cannot go here).
+    fun runPaste(clip: ClipboardState, conflict: Conflict) =
+        vm.pasteClip(clip.items.map { File(it.path) }, clip.move, clip.archiveCut, conflict) { actions.onClipPasted(clip.id) }
     fun pasteClip(clip: ClipboardState) {
         if (!vm.state.value.canUpdate || clip.shareMode != null || RemoteUri.isRemote(clip.sourceDir)) {
             scope.launch { snackbar.showSnackbar(unavailable) }
             return
         }
-        vm.pasteClip(clip.items.map { File(it.path) }, clip.move, clip.archiveCut) { actions.onClipPasted(clip.id) }
+        val policy = when (conflictChoice) {
+            ConflictChoice.ASK -> null
+            ConflictChoice.KEEP_BOTH -> Conflict.KEEP_BOTH
+            ConflictChoice.OVERWRITE -> Conflict.OVERWRITE
+            ConflictChoice.SKIP -> Conflict.SKIP
+        }
+        when {
+            vm.conflictsIn(clip.items.map { it.name }).isEmpty() -> runPaste(clip, Conflict.KEEP_BOTH)
+            policy != null -> runPaste(clip, policy)
+            else -> {
+                UiSounds.play(UiSound.ATTENTION)
+                pendingPaste = clip
+            }
+        }
     }
     val context = LocalContext.current
     var dialog by remember { mutableStateOf<ArchiveDialog>(ArchiveDialog.None) }
@@ -354,6 +376,16 @@ fun ArchiveScreen(
     }
 
     s.task?.let { TaskOverlay(it) }
+    pendingPaste?.let { clip ->
+        TransferDialog(
+            move = clip.move,
+            count = clip.items.size,
+            destination = s.name + "/" + s.dir.trim('/'),
+            conflicts = vm.conflictsIn(clip.items.map { it.name }),
+            onConfirm = { choice -> pendingPaste = null; runPaste(clip, choice) },
+            onDismiss = { pendingPaste = null },
+        )
+    }
     if (clipsDialog) {
         ClipboardQueueDialog(
             clips = clips,

@@ -14,6 +14,7 @@ import dev.cluvex.strata.core.archive.PasswordRequiredException
 import dev.cluvex.strata.core.archive.WrongPasswordException
 import dev.cluvex.strata.core.archive.ZipEditor
 import dev.cluvex.strata.core.build.BuildRun
+import dev.cluvex.strata.core.fs.Conflict
 import dev.cluvex.strata.core.fs.FsUtil
 import dev.cluvex.strata.feature.explorer.ArchiveCut
 import dev.cluvex.strata.core.i18n.tr
@@ -389,11 +390,18 @@ class ArchiveViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    /** The names in [names] that already exist in the open folder of the archive. */
+    fun conflictsIn(names: Collection<String>): List<String> {
+        val taken = _state.value.entries.mapTo(HashSet()) { it.name }
+        return names.filter { it in taken }
+    }
+
     /**
-     * Pastes a clipboard entry into the open folder of the archive. A cut also removes what was cut: the staged
-     * files, or the entries of the archive they came from (unless that is this very folder, which would delete the paste).
+     * Pastes a clipboard entry into the open folder of the archive; [conflict] decides what happens to names that
+     * already exist there. A cut also removes what was pasted: the staged files, or the entries of the archive they
+     * came from (unless that is this very folder, which would delete the paste). Skipped items stay where they were.
      */
-    fun pasteClip(files: List<File>, move: Boolean, cut: ArchiveCut?, onDone: () -> Unit) {
+    fun pasteClip(files: List<File>, move: Boolean, cut: ArchiveCut?, conflict: Conflict, onDone: () -> Unit) {
         val s = _state.value
         if (!s.canUpdate || files.isEmpty()) return
         val sameFolder = cut != null && cut.archive == s.path &&
@@ -402,14 +410,46 @@ class ArchiveViewModel(app: Application) : AndroidViewModel(app) {
             onDone()
             return
         }
+        // (source, name inside the archive)
+        val taken = s.entries.mapTo(HashSet()) { it.name }
+        val plan = ArrayList<Pair<File, String>>()
+        for (f in files) {
+            var name = f.name
+            if (name in taken) {
+                when (conflict) {
+                    Conflict.SKIP -> continue
+                    Conflict.KEEP_BOTH -> name = FsUtil.uniqueName(name, f.isDirectory) { it in taken }
+                    else -> {}
+                }
+            }
+            taken += name
+            plan += f to name
+        }
+        if (plan.isEmpty()) {
+            onDone()
+            return
+        }
         runTask(R.string.archive_adding, R.string.archive_add_failed, "Adding", onSuccess = {
-            _state.update { it.copy(apkChanged = it.apkChanged || it.isApk, message = trPlural(R.plurals.archive_added_items, files.size, files.size)) }
+            _state.update { it.copy(apkChanged = it.apkChanged || it.isApk, message = trPlural(R.plurals.archive_added_items, plan.size, plan.size)) }
             reload(keepDir = true)
             onDone()
         }) {
-            ZipEditor.add(File(s.path), files, s.dir)
+            // Items that get a new name are copied under it first, because the archive takes the file's own name.
+            val stage = File(getApplication<Application>().cacheDir, "archive-paste/${System.nanoTime()}")
+            try {
+                val toAdd = plan.map { (f, name) -> if (name == f.name) f else File(stage, name).also { f.copyRecursively(it, overwrite = true) } }
+                ZipEditor.add(File(s.path), toAdd, s.dir)
+            } finally {
+                FsUtil.deleteRecursively(stage)
+            }
             if (move) {
-                if (cut != null) ZipEditor.delete(File(cut.archive), cut.paths) else files.forEach { FsUtil.deleteRecursively(it) }
+                if (cut != null) {
+                    val pasted = plan.mapTo(HashSet()) { it.first.name }
+                    val paths = cut.paths.filterTo(HashSet()) { it.substringAfterLast('/') in pasted }
+                    if (paths.isNotEmpty()) ZipEditor.delete(File(cut.archive), paths)
+                } else {
+                    plan.forEach { FsUtil.deleteRecursively(it.first) }
+                }
             }
         }
     }
